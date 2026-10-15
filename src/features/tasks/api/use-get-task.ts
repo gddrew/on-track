@@ -22,8 +22,6 @@ export const useGetTask = ({ taskId }: UseGetTaskProps) => {
 
       const { data } = await response.json();
 
-      console.log({ data });
-
       return data;
     },
   });

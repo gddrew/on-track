@@ -5,7 +5,7 @@ import { Inter } from 'next/font/google';
 // Aliased imports should come after package imports
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/sonner';
-import { QueryProvider } from '@/components/query-providers';
+import { QueryProvider } from '@/components/query-provider';
 
 // Last come relative imports
 import './globals.css';

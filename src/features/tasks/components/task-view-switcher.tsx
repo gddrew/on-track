@@ -4,23 +4,25 @@ import { useCallback } from 'react';
 import { useQueryState } from 'nuqs';
 import { Loader, PlusIcon } from 'lucide-react';
 
+import { useProjectId } from '@/features/projects/hooks/use-project-id';
 import { useWorkspaceId } from '@/features/workspaces/hooks/use-workspace-id';
 
 import { Button } from '@/components/ui/button';
 import { DottedSeparator } from '@/components/dotted-separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import { columns } from './columns';
 import { DataFilters } from './data-filters';
+
+import { columns } from './columns';
 import { DataTable } from './data-table';
 import { DataKanban } from './data-kanban';
 import { DataCalendar } from './data-calendar';
 
-import { useGetTasks } from '../api/use-get-tasks';
-import { useBulkUpdateTasks } from '../api/use-bulk-update-tasks';
-import { useCreateTaskModal } from '../hooks/use-create-task-modal';
-import { useTaskFilters } from '../hooks/use-task-filters';
 import { TaskStatus } from '../types';
+import { useGetTasks } from '../api/use-get-tasks';
+import { useTaskFilters } from '../hooks/use-task-filters';
+import { useCreateTaskModal } from '../hooks/use-create-task-modal';
+import { useBulkUpdateTasks } from '../api/use-bulk-update-tasks';
 
 interface TaskViewSwitcherProps {
   hideProjectFilter?: boolean;
@@ -30,27 +32,29 @@ export const TaskViewSwitcher = ({
   hideProjectFilter,
 }: TaskViewSwitcherProps) => {
   const [{ status, assigneeId, projectId, dueDate }] = useTaskFilters();
-
   const [view, setView] = useQueryState('task-view', {
     defaultValue: 'table',
   });
 
   const workspaceId = useWorkspaceId();
+  const paramProjectId = useProjectId();
   const { open } = useCreateTaskModal();
 
   const { mutate: bulkUpdate } = useBulkUpdateTasks();
 
   const { data: tasks, isLoading: isLoadingTasks } = useGetTasks({
     workspaceId,
-    status,
+    projectId: paramProjectId || projectId,
     assigneeId,
-    projectId,
+    status,
     dueDate,
   });
 
   const onKanbanChange = useCallback(
     (tasks: { $id: string; status: TaskStatus; position: number }[]) => {
-      bulkUpdate({ json: { tasks } });
+      bulkUpdate({
+        json: { tasks },
+      });
     },
     [bulkUpdate],
   );
@@ -97,7 +101,7 @@ export const TaskViewSwitcher = ({
                 data={tasks?.documents ?? []}
               />
             </TabsContent>
-            <TabsContent value='calendar' className='mt-0'>
+            <TabsContent value='calendar' className='mt-0 h-full pb-4'>
               <DataCalendar data={tasks?.documents ?? []} />
             </TabsContent>
           </>

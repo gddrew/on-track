@@ -14,13 +14,13 @@ import {
 import { useDeleteTask } from '../api/use-delete-task';
 import { useEditTaskModal } from '../hooks/use-edit-task-modal';
 
-interface TaskActionProps {
+interface TaskActionsProps {
   id: string;
   projectId: string;
   children: React.ReactNode;
 }
 
-export const TaskActions = ({ id, projectId, children }: TaskActionProps) => {
+export const TaskActions = ({ id, projectId, children }: TaskActionsProps) => {
   const workspaceId = useWorkspaceId();
   const router = useRouter();
 
