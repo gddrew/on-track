@@ -34,6 +34,8 @@ import { TaskStatus } from '../types';
 import { createTaskSchema } from '../schemas';
 import { useCreateTask } from '../api/use-create-task';
 
+const formSchema = createTaskSchema.omit({ workspaceId: true });
+
 interface CreateTaskFormProps {
   onCancel?: () => void;
   projectOptions: { id: string; name: string; imageUrl: string }[];
@@ -48,14 +50,11 @@ export const CreateTaskForm = ({
   const workspaceId = useWorkspaceId();
   const { mutate, isPending } = useCreateTask();
 
-  const form = useForm<z.infer<typeof createTaskSchema>>({
-    resolver: zodResolver(createTaskSchema.omit({ workspaceId: true })),
-    defaultValues: {
-      workspaceId,
-    },
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
   });
 
-  const onSubmit = (values: z.infer<typeof createTaskSchema>) => {
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
     mutate(
       { json: { ...values, workspaceId } },
       {
