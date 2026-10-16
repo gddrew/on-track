@@ -17,9 +17,7 @@ import { EventCard } from './event-card';
 
 import { Task } from '../types';
 
-// @ts-expect-error CSS side-effect imports are handled by the bundler.
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-// @ts-expect-error CSS side-effect imports are handled by the bundler.
 import './data-calendar.css';
 
 const locales = {

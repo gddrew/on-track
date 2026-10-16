@@ -3,15 +3,16 @@
 import { z } from 'zod';
 import { useRef } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import { ArrowLeftIcon, ImageIcon } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { ArrowLeftIcon, ImageIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { useConfirm } from '@/hooks/use-confirm';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DottedSeparator } from '@/components/dotted-separator';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -22,7 +23,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { useConfirm } from '@/hooks/use-confirm';
 
 import { Project } from '../types';
 import { updateProjectSchema } from '../schema';
@@ -40,8 +40,8 @@ export const EditProjectForm = ({
 }: EditProjectFormProps) => {
   const router = useRouter();
   const { mutate, isPending } = useUpdateProject();
-
-  const { mutate: deleteProject } = useDeleteProject();
+  const { mutate: deleteProject, isPending: isDeletingProject } =
+    useDeleteProject();
 
   const [DeleteDialog, confirmDelete] = useConfirm(
     'Delete Project',
@@ -58,13 +58,6 @@ export const EditProjectForm = ({
       image: initialValues.imageUrl ?? '',
     },
   });
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      form.setValue('image', file);
-    }
-  };
 
   const handleDelete = async () => {
     const ok = await confirmDelete();
@@ -95,10 +88,17 @@ export const EditProjectForm = ({
     });
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      form.setValue('image', file);
+    }
+  };
+
   return (
     <div className='flex flex-col gap-y-4'>
       <DeleteDialog />
-      <Card className='w-full h-full, border-none shadow-none'>
+      <Card className='w-full h-full border-none shadow-none'>
         <CardHeader className='flex flex-row items-center gap-x-4 p-7 space-y-0'>
           <Button
             size='sm'
@@ -168,12 +168,12 @@ export const EditProjectForm = ({
                         <div className='flex flex-col'>
                           <p className='text-sm'>Project Icon</p>
                           <p className='text-sm text-muted-foreground'>
-                            JPG, PNG, SVG or JPEG, max 1MB
+                            JPG, PNG, SVG or JPEG, max 1mb
                           </p>
                           <input
                             className='hidden'
                             type='file'
-                            accept='.jpg, .jpeg, .png, .svg'
+                            accept='.jpg, .png, .jpeg, .svg'
                             ref={inputRef}
                             onChange={handleImageChange}
                             disabled={isPending}
@@ -224,7 +224,7 @@ export const EditProjectForm = ({
                 >
                   Cancel
                 </Button>
-                <Button type='submit' size='lg' disabled={isPending}>
+                <Button disabled={isPending} type='submit' size='lg'>
                   Save Changes
                 </Button>
               </div>
@@ -233,7 +233,7 @@ export const EditProjectForm = ({
         </CardContent>
       </Card>
 
-      <Card className='w-full h-full border-none shadow-none'>
+      <Card className='w-ful h-full border-none shadow-none'>
         <CardContent className='p-7'>
           <div className='flex flex-col'>
             <h3 className='font-bold'>Danger Zone</h3>
@@ -247,7 +247,7 @@ export const EditProjectForm = ({
               size='sm'
               variant='destructive'
               type='button'
-              disabled={isPending}
+              disabled={isPending || isDeletingProject}
               onClick={handleDelete}
             >
               Delete Project
