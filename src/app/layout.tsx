@@ -1,6 +1,7 @@
 // Always import packages at the top of the file
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { NuqsAdapter } from 'nuqs/adapters/next/app';
 
 // Aliased imports should come after package imports
 import { cn } from '@/lib/utils';
@@ -25,10 +26,12 @@ export default function RootLayout({
   return (
     <html lang='en'>
       <body className={cn(inter.className, 'antialiased min-h-screen')}>
-        <QueryProvider>
-          <Toaster />
-          {children}
-        </QueryProvider>
+        <NuqsAdapter>
+          <QueryProvider>
+            <Toaster />
+            {children}
+          </QueryProvider>
+        </NuqsAdapter>
       </body>
     </html>
   );
