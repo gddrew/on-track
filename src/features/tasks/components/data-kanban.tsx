@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 
 import {
   DragDropContext,
@@ -32,50 +32,36 @@ interface DataKanbanProps {
   ) => void;
 }
 
-export const DataKanban = ({ data, onChange }: DataKanbanProps) => {
-  const [tasks, setTasks] = useState<TasksState>(() => {
-    const initialTasks: TasksState = {
-      [TaskStatus.BACKLOG]: [],
-      [TaskStatus.TODO]: [],
-      [TaskStatus.IN_PROGRESS]: [],
-      [TaskStatus.IN_REVIEW]: [],
-      [TaskStatus.DONE]: [],
-      [TaskStatus.CANCELLED]: [],
-    };
+const groupTasks = (data: Task[]): TasksState => {
+  const tasks: TasksState = {
+    [TaskStatus.BACKLOG]: [],
+    [TaskStatus.TODO]: [],
+    [TaskStatus.IN_PROGRESS]: [],
+    [TaskStatus.IN_REVIEW]: [],
+    [TaskStatus.DONE]: [],
+    [TaskStatus.CANCELLED]: [],
+  };
 
-    data.forEach((task) => {
-      initialTasks[task.status].push(task);
-    });
-
-    Object.keys(initialTasks).forEach((status) => {
-      initialTasks[status as TaskStatus].sort(
-        (a, b) => a.position - b.position,
-      );
-    });
-
-    return initialTasks;
+  data.forEach((task) => {
+    tasks[task.status].push(task);
   });
 
-  useEffect(() => {
-    const newTasks: TasksState = {
-      [TaskStatus.BACKLOG]: [],
-      [TaskStatus.TODO]: [],
-      [TaskStatus.IN_PROGRESS]: [],
-      [TaskStatus.IN_REVIEW]: [],
-      [TaskStatus.DONE]: [],
-      [TaskStatus.CANCELLED]: [],
-    };
+  Object.keys(tasks).forEach((status) => {
+    tasks[status as TaskStatus].sort((a, b) => a.position - b.position);
+  });
 
-    data.forEach((task) => {
-      newTasks[task.status].push(task);
-    });
+  return tasks;
+};
 
-    Object.keys(newTasks).forEach((status) => {
-      newTasks[status as TaskStatus].sort((a, b) => a.position - b.position);
-    });
+export const DataKanban = ({ data, onChange }: DataKanbanProps) => {
+  const [tasks, setTasks] = useState<TasksState>(() => groupTasks(data));
+  const [prevData, setPrevData] = useState(data);
 
-    setTasks(newTasks);
-  }, [data]);
+  // Re-sync local board state when new data arrives from the server
+  if (data !== prevData) {
+    setPrevData(data);
+    setTasks(groupTasks(data));
+  }
 
   const onDragEnd = useCallback(
     (result: DropResult) => {

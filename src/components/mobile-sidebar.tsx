@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { MenuIcon } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
@@ -12,9 +12,13 @@ export const MobileSidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
 
-  useEffect(() => {
+  const [prevPathname, setPrevPathname] = useState(pathname);
+
+  // Close the sidebar after navigating
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
     setIsOpen(false);
-  }, [pathname]);
+  }
 
   return (
     <Sheet modal={false} open={isOpen} onOpenChange={setIsOpen}>
