@@ -99,7 +99,7 @@ const app = new Hono()
   .patch(
     '/:memberId',
     sessionMiddleware,
-    zValidator('json', z.object({ role: z.nativeEnum(MemberRole) })),
+    zValidator('json', z.object({ role: z.enum(MemberRole) })),
     async (c) => {
       const { memberId } = c.req.param();
       const { role } = c.req.valid('json');

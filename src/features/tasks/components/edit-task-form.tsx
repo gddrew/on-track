@@ -33,6 +33,11 @@ import { Task, TaskStatus } from '../types';
 import { createTaskSchema } from '../schemas';
 import { useUpdateTask } from '../api/use-update-task';
 
+const formSchema = createTaskSchema.omit({
+  workspaceId: true,
+  description: true,
+});
+
 interface EditTaskFormProps {
   onCancel?: () => void;
   projectOptions: { id: string; name: string; imageUrl: string }[];
@@ -48,10 +53,8 @@ export const EditTaskForm = ({
 }: EditTaskFormProps) => {
   const { mutate, isPending } = useUpdateTask();
 
-  const form = useForm<z.infer<typeof createTaskSchema>>({
-    resolver: zodResolver(
-      createTaskSchema.omit({ workspaceId: true, description: true }),
-    ),
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       ...initialValues,
       dueDate: initialValues.dueDate
@@ -60,7 +63,7 @@ export const EditTaskForm = ({
     },
   });
 
-  const onSubmit = (values: z.infer<typeof createTaskSchema>) => {
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
     mutate(
       { json: values, param: { taskId: initialValues.$id } },
       {
