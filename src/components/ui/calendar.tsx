@@ -38,7 +38,7 @@ function Calendar({
         month_grid: 'w-full border-collapse space-y-1',
         weekdays: 'flex',
         weekday:
-          'text-muted-foreground rounded-md w-8 font-normal text-[0.8rem]',
+          'text-muted-foreground rounded-md w-8 py-px font-normal text-[0.8rem]',
         week: 'flex w-full mt-2',
         // Day state classes (selected, today, outside, ...) are applied to
         // this grid cell, which also carries aria-selected
@@ -54,7 +54,7 @@ function Calendar({
         range_start: 'day-range-start',
         range_end: 'day-range-end',
         selected:
-          'bg-primary text-primary-foreground [&>button]:hover:bg-primary [&>button]:hover:text-primary-foreground [&>button]:focus:bg-primary [&>button]:focus:text-primary-foreground',
+          'bg-primary text-primary-foreground hover:[&>button]:bg-primary hover:[&>button]:text-primary-foreground focus:[&>button]:bg-primary focus:[&>button]:text-primary-foreground',
         today: 'bg-accent text-accent-foreground',
         outside:
           'day-outside text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground aria-selected:opacity-30',
