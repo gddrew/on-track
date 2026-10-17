@@ -35,7 +35,7 @@ export const WorkspaceSwitcher = () => {
           className='size-5 text-neutral-500 cursor-pointer hover:opacity-75 transition'
         />
       </div>
-      <Select onValueChange={onSelect} value={workspaceId}>
+      <Select onValueChange={onSelect} value={workspaceId ?? ''}>
         <SelectTrigger className='w-full bg-neutral-200 font-medium p-1'>
           <SelectValue placeholder='No workspace selected' />
         </SelectTrigger>

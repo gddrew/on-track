@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowUpDown, MoreVertical } from 'lucide-react';
-import { ColumnDef } from '@tanstack/react-table';
+import { type ColumnDef } from '@tanstack/react-table';
 
 import { MemberAvatar } from '@/features/members/components/member-avatar';
 import { ProjectAvatar } from '@/features/projects/components/project-avatar';
@@ -12,10 +12,11 @@ import { snakeCaseToTitleCase } from '@/lib/utils';
 
 import { TaskActions } from './task-actions';
 import { TaskDate } from './task-date';
+import { type DataTableFeatures } from './data-table';
 
 import { Task } from '../types';
 
-export const columns: ColumnDef<Task>[] = [
+export const columns: ColumnDef<DataTableFeatures, Task>[] = [
   {
     accessorKey: 'name',
     header: ({ column }) => {
