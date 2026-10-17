@@ -1,3 +1,5 @@
+@reference '../../../app/globals.css';
+
 .rbc-header {
   @apply text-sm font-normal pb-4 text-muted-foreground border-b-0;
 }
