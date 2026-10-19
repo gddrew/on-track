@@ -13,7 +13,9 @@ export const useRegister = () => {
   const mutation = useMutation<void, Error, RequestType>({
     mutationFn: async ({ json }) => {
       const { error } = await authClient.signUp.email({
-        ...json,
+        name: json.name,
+        email: json.email,
+        password: json.password,
         callbackURL: '/',
       });
 

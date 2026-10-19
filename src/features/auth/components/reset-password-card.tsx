@@ -14,7 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/password-input';
 import {
   Form,
   FormControl,
@@ -35,7 +35,7 @@ export const ResetPasswordCard = ({ token }: ResetPasswordCardProps) => {
 
   const form = useForm<z.infer<typeof resetPasswordSchema>>({
     resolver: zodResolver(resetPasswordSchema),
-    defaultValues: { password: '' },
+    defaultValues: { password: '', confirmPassword: '' },
   });
 
   const onSubmit = (values: z.infer<typeof resetPasswordSchema>) => {
@@ -67,10 +67,26 @@ export const ResetPasswordCard = ({ token }: ResetPasswordCardProps) => {
                 render={({ field }) => (
                   <FormItem>
                     <FormControl>
-                      <Input
+                      <PasswordInput
                         {...field}
-                        type='password'
+                        autoComplete='new-password'
                         placeholder='Enter a new password'
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                name='confirmPassword'
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <PasswordInput
+                        {...field}
+                        autoComplete='new-password'
+                        placeholder='Confirm new password'
                       />
                     </FormControl>
                     <FormMessage />

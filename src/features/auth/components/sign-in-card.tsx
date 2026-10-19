@@ -9,6 +9,7 @@ import { DottedSeparator } from '@/components/dotted-separator';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/password-input';
 import {
   Form,
   FormControl,
@@ -65,9 +66,9 @@ export const SignInCard = () => {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Input
+                    <PasswordInput
                       {...field}
-                      type='password'
+                      autoComplete='current-password'
                       placeholder='Enter password'
                     />
                   </FormControl>

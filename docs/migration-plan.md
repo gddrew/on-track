@@ -217,8 +217,8 @@ Done when production is live on HTTPS, a restore from last night's backup has be
 
 ## Later, not part of this migration
 
-- Password fields on sign-up and reset: a show/hide toggle and a "confirm password" field.
-- Remove `console.log({ user })` from `src/app/(auth)/sign-in/page.tsx`, which writes user details to the server log.
+- ~~Password fields: a show/hide toggle and a "confirm password" field.~~ Done 2026-10-19 with Phase 2: `PasswordInput` on sign-in, sign-up and reset; sign-up and reset also ask for confirmation.
+- ~~Remove `console.log({ user })` from the sign-in page.~~ Done 2026-10-19.
 - Microsoft sign-in (many non-profits use donated Microsoft 365).
 - Postgres row-level security keyed on workspace.
 - Billing.

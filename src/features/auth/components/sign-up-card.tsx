@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/password-input';
 import {
   Form,
   FormControl,
@@ -35,6 +36,7 @@ export const SignUpCard = () => {
       name: '',
       email: '',
       password: '',
+      confirmPassword: '',
     },
   });
 
@@ -115,10 +117,26 @@ export const SignUpCard = () => {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Input
+                    <PasswordInput
                       {...field}
-                      type='password'
+                      autoComplete='new-password'
                       placeholder='Create a password'
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              name='confirmPassword'
+              control={form.control}
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <PasswordInput
+                      {...field}
+                      autoComplete='new-password'
+                      placeholder='Confirm password'
                     />
                   </FormControl>
                   <FormMessage />
