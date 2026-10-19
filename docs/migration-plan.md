@@ -125,6 +125,14 @@ Done when the migration is generated and applies cleanly.
 
 Done when register, login, logout, Google and GitHub sign-in all work locally, and unauthenticated API calls get 401.
 
+**Split into three parts (decided 2026-10-19).** The data routes reached Appwrite as the signed-in user, so replacing Appwrite login would have broken every page until Phase 4. Each part is its own commit and leaves the app working:
+
+- **2a: email/password ✅ done 2026-10-19.** Better Auth is mounted at `/api/auth/*`, the old Hono auth routes and Appwrite OAuth files are gone, and the four auth hooks call Better Auth. Auth tables were checked against `bunx auth generate`; that added `drizzle/0001_verification_identifier_index.sql`.
+  - **Temporary bridge until Phase 4:** `sessionMiddleware` gives routes Appwrite clients that use the **admin API key** (the key now has the `documents.*` and `files.*` scopes). Member names and emails come from the Postgres `user` table (`populateMembers`). Routes still check membership with `getMember`.
+  - **Run `next dev` on Node 25 until Phase 4.** node-appwrite 14 fails on Node 26 (`UND_ERR_INVALID_ARG: invalid onError method`).
+- **2b: Google and GitHub sign-in.** Needs OAuth apps created with each provider.
+- **2c: password reset by email.** Needs an email provider.
+
 ## Phase 3: Authorization helper
 
 Replace `getMember` with one helper used by every workspace-scoped route, for example:
