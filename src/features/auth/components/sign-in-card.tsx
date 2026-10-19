@@ -75,6 +75,11 @@ export const SignInCard = () => {
                 </FormItem>
               )}
             />
+            <div className='text-right text-sm'>
+              <Link href='/forgot-password' className='text-blue-700'>
+                Forgot password?
+              </Link>
+            </div>
             <Button
               disabled={isPending}
               type='submit'

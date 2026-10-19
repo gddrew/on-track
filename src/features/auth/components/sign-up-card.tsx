@@ -27,7 +27,7 @@ import { useRegister } from '../api/use-register';
 import { SocialSignIn } from './social-sign-in';
 
 export const SignUpCard = () => {
-  const { mutate, isPending } = useRegister();
+  const { mutate, isPending, isSuccess, variables } = useRegister();
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
@@ -41,6 +41,20 @@ export const SignUpCard = () => {
   const onSubmit = (values: z.infer<typeof registerSchema>) => {
     mutate({ json: values });
   };
+
+  if (isSuccess) {
+    return (
+      <Card className='w-full h-full md:-w-[487px] border-none shadow-none'>
+        <CardHeader className='flex items-center justify-center text-center p-7'>
+          <CardTitle className='text-2xl'>Check your email</CardTitle>
+          <CardDescription>
+            We&apos;ve sent a link to {variables.json.email}. Click it to
+            verify your email and finish signing up. It expires in 1 hour.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <Card className='w-full h-full md:-w-[487px] border-none shadow-none'>

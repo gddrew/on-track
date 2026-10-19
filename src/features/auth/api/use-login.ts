@@ -15,10 +15,14 @@ export const useLogin = () => {
 
   const mutation = useMutation<void, Error, RequestType>({
     mutationFn: async ({ json }) => {
-      const { error } = await authClient.signIn.email(json);
+      // callbackURL is where the verification link lands if the email isn't verified yet
+      const { error } = await authClient.signIn.email({
+        ...json,
+        callbackURL: '/',
+      });
 
       if (error) {
-        throw new Error(error.message ?? 'Failed to login');
+        throw new Error(error.code ?? 'Failed to login');
       }
     },
     onSuccess: () => {
@@ -26,7 +30,14 @@ export const useLogin = () => {
       router.refresh();
       queryClient.invalidateQueries({ queryKey: ['current'] });
     },
-    onError: () => {
+    onError: (error) => {
+      if (error.message === 'EMAIL_NOT_VERIFIED') {
+        toast.error(
+          "Please verify your email first. We've sent you a new link.",
+        );
+        return;
+      }
+
       toast.error('Failed to log in');
     },
   });

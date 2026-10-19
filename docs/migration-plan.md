@@ -131,7 +131,7 @@ Done when register, login, logout, Google and GitHub sign-in all work locally, a
   - **Temporary bridge until Phase 4:** `sessionMiddleware` gives routes Appwrite clients that use the **admin API key** (the key now has the `documents.*` and `files.*` scopes). Member names and emails come from the Postgres `user` table (`populateMembers`). Routes still check membership with `getMember`.
   - **Run `next dev` on Node 25 until Phase 4.** node-appwrite 14 fails on Node 26 (`UND_ERR_INVALID_ARG: invalid onError method`).
 - **2b: Google and GitHub sign-in ✅ done 2026-10-19.** Microsoft was dropped. Dev OAuth apps are `on-track (dev)` with GitHub and in the Google Cloud project `on-track` (no billing account; the consent screen is in Testing mode, so only listed test users can sign in). Both cards use `SocialSignIn`. Production needs separate OAuth apps or callback URLs, and the Google app published (Phase 7).
-- **2c: password reset by email.** Needs an email provider.
+- **2c: password reset and email verification ✅ done 2026-10-19.** Email goes out over SMTP (`src/lib/email.ts`, nodemailer) through Resend, from `noreply@mail.randomlake.cc`, the domain the user's other app already verified; any SMTP provider works by changing `.env.local`. Email/password sign-ups must verify their email before signing in; a fresh link is sent on any sign-in attempt before then. New pages are `/forgot-password` and `/reset-password`. A reset signs out every other session. Reset and verification links expire after 1 hour. Tested end to end with a local Mailpit catcher, not with real email.
 
 ## Phase 3: Authorization helper
 
@@ -217,6 +217,8 @@ Done when production is live on HTTPS, a restore from last night's backup has be
 
 ## Later, not part of this migration
 
+- Password fields on sign-up and reset: a show/hide toggle and a "confirm password" field.
+- Remove `console.log({ user })` from `src/app/(auth)/sign-in/page.tsx`, which writes user details to the server log.
 - Microsoft sign-in (many non-profits use donated Microsoft 365).
 - Postgres row-level security keyed on workspace.
 - Billing.
