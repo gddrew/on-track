@@ -1,15 +1,13 @@
 import { Query } from 'node-appwrite';
 
-import { createSessionClient } from '@/lib/appwrite';
+import { createAdminClient } from '@/lib/appwrite';
 import { DATABASE_ID, MEMBERS_ID, WORKSPACES_ID } from '@/config';
 
-export const getWorkspaces = async () => {
-  const { databases, account } = await createSessionClient();
-
-  const user = await account.get();
+export const getWorkspaces = async (userId: string) => {
+  const { databases } = await createAdminClient();
 
   const members = await databases.listDocuments(DATABASE_ID, MEMBERS_ID, [
-    Query.equal('userId', user.$id),
+    Query.equal('userId', userId),
   ]);
 
   if (members.total === 0) {

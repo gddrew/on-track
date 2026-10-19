@@ -2,8 +2,6 @@
 
 import { z } from 'zod';
 import Link from 'next/link';
-// import { FcGoogle } from 'react-icons/fc';
-import { FaGithub } from 'react-icons/fa';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
@@ -17,6 +15,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/password-input';
 import {
   Form,
   FormControl,
@@ -26,9 +25,10 @@ import {
 } from '@/components/ui/form';
 import { registerSchema } from '../schema';
 import { useRegister } from '../api/use-register';
+import { SocialSignIn } from './social-sign-in';
 
 export const SignUpCard = () => {
-  const { mutate, isPending } = useRegister();
+  const { mutate, isPending, isSuccess, variables } = useRegister();
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
@@ -36,12 +36,27 @@ export const SignUpCard = () => {
       name: '',
       email: '',
       password: '',
+      confirmPassword: '',
     },
   });
 
   const onSubmit = (values: z.infer<typeof registerSchema>) => {
     mutate({ json: values });
   };
+
+  if (isSuccess) {
+    return (
+      <Card className='w-full h-full md:-w-[487px] border-none shadow-none'>
+        <CardHeader className='flex items-center justify-center text-center p-7'>
+          <CardTitle className='text-2xl'>Check your email</CardTitle>
+          <CardDescription>
+            We&apos;ve sent a link to {variables.json.email}. Click it to
+            verify your email and finish signing up. It expires in 1 hour.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <Card className='w-full h-full md:-w-[487px] border-none shadow-none'>
@@ -102,10 +117,26 @@ export const SignUpCard = () => {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Input
+                    <PasswordInput
                       {...field}
-                      type='password'
+                      autoComplete='new-password'
                       placeholder='Create a password'
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              name='confirmPassword'
+              control={form.control}
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <PasswordInput
+                      {...field}
+                      autoComplete='new-password'
+                      placeholder='Confirm password'
                     />
                   </FormControl>
                   <FormMessage />
@@ -127,24 +158,7 @@ export const SignUpCard = () => {
         <DottedSeparator />
       </div>
       <CardContent className='p-7 flex flex-col gap-y-4'>
-        {/* <Button
-          disabled={isPending}
-          variant="secondary"
-          size="lg"
-          className="w-full"
-        >
-          <FcGoogle className="mr-2 size-5" />
-          Login with Google
-        </Button> */}
-        <Button
-          disabled={isPending}
-          variant='secondary'
-          size='lg'
-          className='w-full'
-        >
-          <FaGithub className='mr-2 size-5' />
-          Login with Github
-        </Button>
+        <SocialSignIn disabled={isPending} />
       </CardContent>
       <div className='px-7'>
         <DottedSeparator />

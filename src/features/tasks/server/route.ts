@@ -3,10 +3,10 @@ import { Hono } from 'hono';
 import { ID, Query } from 'node-appwrite';
 import { zValidator } from '@hono/zod-validator';
 
-import { getMember } from '@/features/members/utils';
+import { getMember, populateMembers } from '@/features/members/utils';
 import { Project } from '@/features/projects/types';
+import { Member } from '@/features/members/types';
 
-import { createAdminClient } from '@/lib/appwrite';
 import { sessionMiddleware } from '@/lib/session-middleware';
 import { DATABASE_ID, MEMBERS_ID, PROJECTS_ID, TASKS_ID } from '@/config';
 
@@ -29,7 +29,6 @@ const app = new Hono()
       }),
     ),
     async (c) => {
-      const { users } = await createAdminClient();
       const databases = c.get('databases');
       const user = c.get('user');
 
@@ -91,23 +90,13 @@ const app = new Hono()
         projectIds.length > 0 ? [Query.contains('$id', projectIds)] : [],
       );
 
-      const members = await databases.listDocuments(
+      const members = await databases.listDocuments<Member>(
         DATABASE_ID,
         MEMBERS_ID,
         assigneeIds.length > 0 ? [Query.contains('$id', assigneeIds)] : [],
       );
 
-      const assignees = await Promise.all(
-        members.documents.map(async (member) => {
-          const user = await users.get(member.userId);
-
-          return {
-            ...member,
-            name: user.name || user.email,
-            email: user.email,
-          };
-        }),
-      );
+      const assignees = await populateMembers(members.documents);
 
       const populatedTasks = tasks.documents.map((task) => {
         const project = projects.documents.find(
@@ -259,7 +248,6 @@ const app = new Hono()
   .get('/:taskId', sessionMiddleware, async (c) => {
     const currentUser = c.get('user');
     const databases = c.get('databases');
-    const { users } = await createAdminClient();
     const { taskId } = c.req.param();
 
     const task = await databases.getDocument<Task>(
@@ -284,19 +272,13 @@ const app = new Hono()
       task.projectId,
     );
 
-    const member = await databases.getDocument(
+    const member = await databases.getDocument<Member>(
       DATABASE_ID,
       MEMBERS_ID,
       task.assigneeId,
     );
 
-    const user = await users.get(member.userId);
-
-    const assignee = {
-      ...member,
-      name: user.name || user.email,
-      email: user.email,
-    };
+    const [assignee] = await populateMembers([member]);
 
     return c.json({
       data: {

@@ -2,16 +2,14 @@
 
 import { z } from 'zod';
 import Link from 'next/link';
-// import { FcGoogle } from 'react-icons/fc';
-import { FaGithub } from 'react-icons/fa';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
-import { signUpWithGithub } from '@/lib/oauth';
 import { DottedSeparator } from '@/components/dotted-separator';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/password-input';
 import {
   Form,
   FormControl,
@@ -21,6 +19,7 @@ import {
 } from '@/components/ui/form';
 import { loginSchema } from '../schema';
 import { useLogin } from '../api/use-login';
+import { SocialSignIn } from './social-sign-in';
 
 export const SignInCard = () => {
   const { mutate, isPending } = useLogin();
@@ -67,9 +66,9 @@ export const SignInCard = () => {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Input
+                    <PasswordInput
                       {...field}
-                      type='password'
+                      autoComplete='current-password'
                       placeholder='Enter password'
                     />
                   </FormControl>
@@ -77,6 +76,11 @@ export const SignInCard = () => {
                 </FormItem>
               )}
             />
+            <div className='text-right text-sm'>
+              <Link href='/forgot-password' className='text-blue-700'>
+                Forgot password?
+              </Link>
+            </div>
             <Button
               disabled={isPending}
               type='submit'
@@ -92,25 +96,7 @@ export const SignInCard = () => {
         <DottedSeparator />
       </div>
       <CardContent className='p-7 flex flex-col gap-y-4'>
-        {/* <Button
-          disabled={isPending}
-          variant='secondary'
-          size='lg'
-          className='w-full'
-        >
-          <FcGoogle className='mr-2 size-5' />
-          Login with Google
-        </Button> */}
-        <Button
-          onClick={() => signUpWithGithub()}
-          disabled={isPending}
-          variant='secondary'
-          size='lg'
-          className='w-full'
-        >
-          <FaGithub className='mr-2 size-5' />
-          Login with Github
-        </Button>
+        <SocialSignIn disabled={isPending} />
       </CardContent>
       <div className='px-7'>
         <DottedSeparator />

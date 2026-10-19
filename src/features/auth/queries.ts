@@ -1,11 +1,9 @@
-import { createSessionClient } from '@/lib/appwrite';
+import { headers } from 'next/headers';
+
+import { auth } from '@/lib/auth';
 
 export const getCurrent = async () => {
-  try {
-    const { account } = await createSessionClient();
+  const session = await auth.api.getSession({ headers: await headers() });
 
-    return await account.get();
-  } catch {
-    return null;
-  }
+  return session?.user ?? null;
 };
