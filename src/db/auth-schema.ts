@@ -1,7 +1,8 @@
+import { relations } from 'drizzle-orm';
 import { boolean, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
-// Better Auth core tables. Column names follow Better Auth's defaults; check them
-// against `@better-auth/cli generate` when Better Auth is installed (Phase 2).
+// Better Auth core tables, checked against `bunx auth generate` (1.7.11).
+// Timestamps keep the time zone, unlike the generator's output; Better Auth works with either.
 
 const timestamps = {
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
@@ -57,10 +58,27 @@ export const account = pgTable(
   (t) => [index().on(t.userId)],
 );
 
-export const verification = pgTable('verification', {
-  id: text().primaryKey(),
-  identifier: text().notNull(),
-  value: text().notNull(),
-  expiresAt: timestamp({ withTimezone: true }).notNull(),
-  ...timestamps,
-});
+export const verification = pgTable(
+  'verification',
+  {
+    id: text().primaryKey(),
+    identifier: text().notNull(),
+    value: text().notNull(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (t) => [index().on(t.identifier)],
+);
+
+export const userRelations = relations(user, ({ many }) => ({
+  sessions: many(session),
+  accounts: many(account),
+}));
+
+export const sessionRelations = relations(session, ({ one }) => ({
+  user: one(user, { fields: [session.userId], references: [user.id] }),
+}));
+
+export const accountRelations = relations(account, ({ one }) => ({
+  user: one(user, { fields: [account.userId], references: [user.id] }),
+}));

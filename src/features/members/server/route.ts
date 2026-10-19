@@ -3,11 +3,10 @@ import { Hono } from 'hono';
 import { Query } from 'node-appwrite';
 import { zValidator } from '@hono/zod-validator';
 
-import { createAdminClient } from '@/lib/appwrite';
 import { DATABASE_ID, MEMBERS_ID } from '@/config';
 import { sessionMiddleware } from '@/lib/session-middleware';
 
-import { getMember } from '../utils';
+import { getMember, populateMembers } from '../utils';
 import { Member, MemberRole } from '../types';
 
 const app = new Hono()
@@ -16,7 +15,6 @@ const app = new Hono()
     sessionMiddleware,
     zValidator('query', z.object({ workspaceId: z.string() })),
     async (c) => {
-      const { users } = await createAdminClient();
       const databases = c.get('databases');
       const user = c.get('user');
       const { workspaceId } = c.req.valid('query');
@@ -37,17 +35,7 @@ const app = new Hono()
         [Query.equal('workspaceId', workspaceId)],
       );
 
-      const populatedMembers = await Promise.all(
-        members.documents.map(async (member) => {
-          const user = await users.get(member.userId);
-
-          return {
-            ...member,
-            name: user.name || user.email,
-            email: user.email,
-          };
-        }),
-      );
+      const populatedMembers = await populateMembers(members.documents);
 
       return c.json({
         data: {

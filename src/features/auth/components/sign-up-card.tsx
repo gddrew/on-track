@@ -2,8 +2,6 @@
 
 import { z } from 'zod';
 import Link from 'next/link';
-// import { FcGoogle } from 'react-icons/fc';
-import { FaGithub } from 'react-icons/fa';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
@@ -123,29 +121,7 @@ export const SignUpCard = () => {
           </form>
         </Form>
       </CardContent>
-      <div className='px-7'>
-        <DottedSeparator />
-      </div>
-      <CardContent className='p-7 flex flex-col gap-y-4'>
-        {/* <Button
-          disabled={isPending}
-          variant="secondary"
-          size="lg"
-          className="w-full"
-        >
-          <FcGoogle className="mr-2 size-5" />
-          Login with Google
-        </Button> */}
-        <Button
-          disabled={isPending}
-          variant='secondary'
-          size='lg'
-          className='w-full'
-        >
-          <FaGithub className='mr-2 size-5' />
-          Login with Github
-        </Button>
-      </CardContent>
+      {/* Google and GitHub sign-up return in Phase 2b */}
       <div className='px-7'>
         <DottedSeparator />
       </div>

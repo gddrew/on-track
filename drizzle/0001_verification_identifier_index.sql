@@ -1,0 +1,1 @@
+CREATE INDEX "verification_identifier_index" ON "verification" USING btree ("identifier");
