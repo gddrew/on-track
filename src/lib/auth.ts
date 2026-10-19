@@ -13,5 +13,16 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: 8,
   },
+  // Callback URLs: <BETTER_AUTH_URL>/api/auth/callback/<provider>
+  socialProviders: {
+    github: {
+      clientId: process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+    },
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    },
+  },
   telemetry: { enabled: false },
 });

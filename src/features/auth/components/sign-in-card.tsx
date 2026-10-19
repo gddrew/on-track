@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/form';
 import { loginSchema } from '../schema';
 import { useLogin } from '../api/use-login';
+import { SocialSignIn } from './social-sign-in';
 
 export const SignInCard = () => {
   const { mutate, isPending } = useLogin();
@@ -85,7 +86,12 @@ export const SignInCard = () => {
           </form>
         </Form>
       </CardContent>
-      {/* Google and GitHub sign-in return in Phase 2b */}
+      <div className='px-7'>
+        <DottedSeparator />
+      </div>
+      <CardContent className='p-7 flex flex-col gap-y-4'>
+        <SocialSignIn disabled={isPending} />
+      </CardContent>
       <div className='px-7'>
         <DottedSeparator />
       </div>

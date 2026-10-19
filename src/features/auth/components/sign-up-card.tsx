@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/form';
 import { registerSchema } from '../schema';
 import { useRegister } from '../api/use-register';
+import { SocialSignIn } from './social-sign-in';
 
 export const SignUpCard = () => {
   const { mutate, isPending } = useRegister();
@@ -121,7 +122,12 @@ export const SignUpCard = () => {
           </form>
         </Form>
       </CardContent>
-      {/* Google and GitHub sign-up return in Phase 2b */}
+      <div className='px-7'>
+        <DottedSeparator />
+      </div>
+      <CardContent className='p-7 flex flex-col gap-y-4'>
+        <SocialSignIn disabled={isPending} />
+      </CardContent>
       <div className='px-7'>
         <DottedSeparator />
       </div>

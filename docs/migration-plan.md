@@ -130,7 +130,7 @@ Done when register, login, logout, Google and GitHub sign-in all work locally, a
 - **2a: email/password ✅ done 2026-10-19.** Better Auth is mounted at `/api/auth/*`, the old Hono auth routes and Appwrite OAuth files are gone, and the four auth hooks call Better Auth. Auth tables were checked against `bunx auth generate`; that added `drizzle/0001_verification_identifier_index.sql`.
   - **Temporary bridge until Phase 4:** `sessionMiddleware` gives routes Appwrite clients that use the **admin API key** (the key now has the `documents.*` and `files.*` scopes). Member names and emails come from the Postgres `user` table (`populateMembers`). Routes still check membership with `getMember`.
   - **Run `next dev` on Node 25 until Phase 4.** node-appwrite 14 fails on Node 26 (`UND_ERR_INVALID_ARG: invalid onError method`).
-- **2b: Google and GitHub sign-in.** Needs OAuth apps created with each provider.
+- **2b: Google and GitHub sign-in ✅ done 2026-10-19.** Microsoft was dropped. Dev OAuth apps are `on-track (dev)` with GitHub and in the Google Cloud project `on-track` (no billing account; the consent screen is in Testing mode, so only listed test users can sign in). Both cards use `SocialSignIn`. Production needs separate OAuth apps or callback URLs, and the Google app published (Phase 7).
 - **2c: password reset by email.** Needs an email provider.
 
 ## Phase 3: Authorization helper
