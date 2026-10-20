@@ -14,11 +14,9 @@ import { ProjectAvatar } from '@/features/projects/components/project-avatar';
 import { useWorkspaceId } from '@/features/workspaces/hooks/use-workspace-id';
 import { useCreateTaskModal } from '@/features/tasks/hooks/use-create-task-modal';
 import { useCreateProjectModal } from '@/features/projects/hooks/use-create-project-modal';
-import { useGetWorkspaceAnalytics } from '@/features/workspaces/api/use-get-workspace-analytics';
 
 import { Button } from '@/components/ui/button';
 import { PageError } from '@/components/page-error';
-import { Analytics } from '@/components/analytics';
 import { PageLoader } from '@/components/page-loader';
 import { Card, CardContent } from '@/components/ui/card';
 import { DottedSeparator } from '@/components/dotted-separator';
@@ -27,8 +25,6 @@ import { MemberAvatar } from '@/features/members/components/member-avatar';
 export const WorkspaceIdClient = () => {
   const workspaceId = useWorkspaceId();
 
-  const { data: analytics, isLoading: isLoadingAnalytics } =
-    useGetWorkspaceAnalytics({ workspaceId });
   const { data: tasks, isLoading: isLoadingTasks } = useGetTasks({
     workspaceId,
   });
@@ -40,7 +36,6 @@ export const WorkspaceIdClient = () => {
   });
 
   const isLoading =
-    isLoadingAnalytics ||
     isLoadingTasks ||
     isLoadingProjects ||
     isLoadingMembers;
@@ -49,13 +44,12 @@ export const WorkspaceIdClient = () => {
     return <PageLoader />;
   }
 
-  if (!analytics || !tasks || !projects || !members) {
+  if (!tasks || !projects || !members) {
     return <PageError message='Failed to load workspace data' />;
   }
 
   return (
     <div className='h-full flex flex-col space-y-4'>
-      <Analytics data={analytics} />
       <div className='grid grid-cols-1 xl:grid-cols-2 gap-4'>
         <TaskList data={tasks.documents} total={tasks.total} />
         <ProjectList data={projects.documents} total={projects.total} />

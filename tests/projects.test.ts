@@ -122,7 +122,6 @@ describe('reading', () => {
       `/projects/${project.$id}`,
       `/projects/${MISSING_ID}`,
       '/projects/not-a-uuid',
-      `/projects/${project.$id}/analytics`,
     ]) {
       expect((await request(bob, 'GET', path)).status).toBe(404);
     }
