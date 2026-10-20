@@ -38,56 +38,10 @@ Object.assign(process.env, {
   SMTP_USER: 'test',
   SMTP_PASSWORD: 'test',
   EMAIL_FROM: 'test@example.org',
-  // Until Phase 4 is finished, routes still build an Appwrite client; the tests
-  // only cover routes that no longer use it
-  NEXT_PUBLIC_APPWRITE_ENDPOINT: 'http://appwrite.invalid/v1',
-  NEXT_PUBLIC_APPWRITE_PROJECT: 'test',
-  NEXT_APPWRITE_KEY: 'test',
 });
 
 // server-only refuses to load outside Next.js's server build
 mock.module('server-only', () => ({}));
-
-// Until 4e removes Appwrite: node-appwrite's fetch layer doesn't load under Bun,
-// and the tests only cover routes that have moved to Postgres. Any route that
-// still reaches Appwrite fails loudly instead of quietly passing.
-mock.module('node-appwrite', () => {
-  const unavailable = new Proxy(
-    {},
-    {
-      get: (_, name) => () => {
-        throw new Error(`Appwrite is not available in tests (${String(name)})`);
-      },
-    },
-  );
-  class Client {
-    setEndpoint() {
-      return this;
-    }
-    setProject() {
-      return this;
-    }
-    setKey() {
-      return this;
-    }
-  }
-
-  return {
-    Client,
-    Databases: class {
-      constructor() {
-        return unavailable;
-      }
-    },
-    Storage: class {
-      constructor() {
-        return unavailable;
-      }
-    },
-    Query: new Proxy({}, { get: () => () => '' }),
-    ID: { unique: () => 'unique()' },
-  };
-});
 
 export const sentEmails: { to: string; subject: string; url: string }[] = [];
 
