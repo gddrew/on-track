@@ -100,7 +100,6 @@ describe('images', () => {
 describe("another workspace can't be reached", () => {
   test.each([
     ['read it', 'GET', ''],
-    ['read its analytics', 'GET', '/analytics'],
     ['rename it', 'PATCH', ''],
     ['delete it', 'DELETE', ''],
     ['reset its invite code', 'POST', '/reset-invite-code'],

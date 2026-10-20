@@ -213,7 +213,9 @@ await requireMember(c, workspaceId, { role: MemberRole.ADMIN });               /
   - The leftover `console.log` in `use-get-tasks` is gone.
   - Temporary until 4d: the analytics cards still count Appwrite's old tasks.
   - Tests: 27 more (80 in all). With the task access checks disabled, 7 fail.
-- **4d: analytics.** One query per page; fix the "last month overdue" bug.
+- **4d: analytics.** ✅ Removed instead of ported.
+  - The cards mixed scopes ("Total" counted everyone's tasks, "Assigned" only the viewer's) and didn't follow the filters, and the user decided they weren't worth keeping. The workspace and project analytics routes, hooks and cards are gone.
+  - If dashboards come back (likely with the Agile hierarchy), they should follow the task filters: one person when one is selected, everyone otherwise. The old version had a bug worth not repeating: last month's overdue count counted finished tasks. Git history has a one-query version (`count(*) filter (where …)`).
 - **4e: remove Appwrite.** Drop `node-appwrite` and its settings and the test stand-in; back to Node 26.
 
 The original notes:
@@ -224,7 +226,7 @@ Order, from simplest to hardest:
 2. **Projects.** CRUD.
 3. **Members.** List with user name and email (one join, which replaces the N `users.get()` calls), update role, delete.
 4. **Tasks.** List with project and assignee joined, get, create, update, delete, bulk update. Run the bulk update in a single transaction.
-5. **Analytics** (workspace and project). Replace the 10 sequential queries with one aggregate query using `count(*) filter (where …)` for this month and last month.
+5. **Analytics** (workspace and project). Replace the 10 sequential queries with one aggregate query using `count(*) filter (where …)` for this month and last month. (Removed in 4d instead.)
 
 While porting:
 
