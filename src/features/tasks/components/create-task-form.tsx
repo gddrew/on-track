@@ -38,7 +38,7 @@ const formSchema = createTaskSchema.omit({ workspaceId: true });
 
 interface CreateTaskFormProps {
   onCancel?: () => void;
-  projectOptions: { id: string; name: string; imageUrl: string }[];
+  projectOptions: { id: string; name: string; imageUrl: string | null }[];
   memberOptions: { id: string; name: string }[];
 }
 

@@ -1,17 +1,23 @@
 import { z } from 'zod';
 import { Hono } from 'hono';
-import { ID, Query } from 'node-appwrite';
+import { eq } from 'drizzle-orm';
+import { Query } from 'node-appwrite';
 import { zValidator } from '@hono/zod-validator';
 import { endOfMonth, startOfMonth, subMonths } from 'date-fns';
 
+import { db } from '@/db';
+import { projects } from '@/db/schema';
+import { toApi } from '@/db/api-shape';
 import { requireMember } from '@/features/members/utils';
 import { MemberRole } from '@/features/members/types';
-
-import { DATABASE_ID, IMAGES_BUCKET_ID, PROJECTS_ID, TASKS_ID } from '@/config';
-import { sessionMiddleware } from '@/lib/session-middleware';
-import { createProjectSchema, updateProjectSchema } from '../schema';
-import { Project } from '../types';
 import { TaskStatus } from '@/features/tasks/types';
+
+import { fileToDataUrl } from '@/lib/images';
+import { DATABASE_ID, TASKS_ID } from '@/config';
+import { sessionMiddleware } from '@/lib/session-middleware';
+
+import { createProjectSchema, updateProjectSchema } from '../schema';
+import { listProjects, requireProject } from '../utils';
 
 const app = new Hono()
   .post(
@@ -19,42 +25,20 @@ const app = new Hono()
     sessionMiddleware,
     zValidator('form', createProjectSchema),
     async (c) => {
-      const databases = c.get('databases');
-      const storage = c.get('storage');
-
       const { name, image, workspaceId } = c.req.valid('form');
 
       await requireMember(c, workspaceId);
 
-      let uploadedImageUrl: string | undefined;
-
-      if (image instanceof File) {
-        const file = await storage.createFile(
-          IMAGES_BUCKET_ID,
-          ID.unique(),
-          image,
-        );
-
-        const arrayBuffer = await storage.getFileView(
-          IMAGES_BUCKET_ID,
-          file.$id,
-        );
-
-        uploadedImageUrl = `data:image/png;base64,${Buffer.from(arrayBuffer).toString('base64')}`;
-      }
-
-      const project = await databases.createDocument(
-        DATABASE_ID,
-        PROJECTS_ID,
-        ID.unique(),
-        {
+      const [project] = await db
+        .insert(projects)
+        .values({
           name,
-          imageUrl: uploadedImageUrl,
           workspaceId,
-        },
-      );
+          imageUrl: image instanceof File ? await fileToDataUrl(image) : null,
+        })
+        .returning();
 
-      return c.json({ data: project });
+      return c.json({ data: toApi(project) });
     },
   )
   .get(
@@ -62,35 +46,17 @@ const app = new Hono()
     sessionMiddleware,
     zValidator('query', z.object({ workspaceId: z.string() })),
     async (c) => {
-      const databases = c.get('databases');
-
       const { workspaceId } = c.req.valid('query');
 
       await requireMember(c, workspaceId);
 
-      const projects = await databases.listDocuments<Project>(
-        DATABASE_ID,
-        PROJECTS_ID,
-        [
-          Query.equal('workspaceId', workspaceId),
-          Query.orderDesc('$createdAt'),
-        ],
-      );
+      const documents = await listProjects(workspaceId);
 
-      return c.json({ data: projects });
+      return c.json({ data: { documents, total: documents.length } });
     },
   )
   .get('/:projectId', sessionMiddleware, async (c) => {
-    const databases = c.get('databases');
-    const { projectId } = c.req.param();
-
-    const project = await databases.getDocument<Project>(
-      DATABASE_ID,
-      PROJECTS_ID,
-      projectId,
-    );
-
-    await requireMember(c, project.workspaceId);
+    const { project } = await requireProject(c, c.req.param('projectId'));
 
     return c.json({ data: project });
   })
@@ -98,13 +64,8 @@ const app = new Hono()
     const databases = c.get('databases');
     const { projectId } = c.req.param();
 
-    const project = await databases.getDocument<Project>(
-      DATABASE_ID,
-      PROJECTS_ID,
-      projectId,
-    );
-
-    const member = await requireMember(c, project.workspaceId);
+    // Tasks are still in Appwrite until 4c; 4d replaces these queries
+    const { member } = await requireProject(c, projectId);
 
     const now = new Date();
     const thisMonthStart = startOfMonth(now);
@@ -269,71 +230,37 @@ const app = new Hono()
     sessionMiddleware,
     zValidator('form', updateProjectSchema),
     async (c) => {
-      const databases = c.get('databases');
-      const storage = c.get('storage');
-
       const { projectId } = c.req.param();
       const { name, image } = c.req.valid('form');
 
-      const existingProject = await databases.getDocument<Project>(
-        DATABASE_ID,
-        PROJECTS_ID,
-        projectId,
-      );
+      // Any member can create and edit projects; only admins can delete them
+      await requireProject(c, projectId);
 
-      await requireMember(c, existingProject.workspaceId);
-
-      let uploadedImageUrl: string | undefined;
-      if (image instanceof File) {
-        const file = await storage.createFile(
-          IMAGES_BUCKET_ID,
-          ID.unique(),
-          image,
-        );
-
-        const arrayBuffer = await storage.getFileView(
-          IMAGES_BUCKET_ID,
-          file.$id,
-        );
-
-        uploadedImageUrl = `data:image/png;base64,${Buffer.from(arrayBuffer).toString('base64')}`;
-      } else {
-        uploadedImageUrl = image;
-      }
-
-      const project = await databases.updateDocument(
-        DATABASE_ID,
-        PROJECTS_ID,
-        projectId,
-        {
+      // Without a new file the current image is kept
+      const [project] = await db
+        .update(projects)
+        .set({
           name,
-          imageUrl: uploadedImageUrl,
-        },
-      );
+          ...(image instanceof File && {
+            imageUrl: await fileToDataUrl(image),
+          }),
+        })
+        .where(eq(projects.id, projectId))
+        .returning();
 
-      return c.json({ data: project });
+      return c.json({ data: toApi(project) });
     },
   )
   .delete('/:projectId', sessionMiddleware, async (c) => {
-    const databases = c.get('databases');
-
     const { projectId } = c.req.param();
 
-    const existingProject = await databases.getDocument<Project>(
-      DATABASE_ID,
-      PROJECTS_ID,
-      projectId,
-    );
+    await requireProject(c, projectId, { role: MemberRole.ADMIN });
 
-    // Any member can create and edit projects; only admins can delete them
-    await requireMember(c, existingProject.workspaceId, {
-      role: MemberRole.ADMIN,
-    });
+    // The database removes its tasks too. Until 4c moves them, its Appwrite tasks
+    // are left behind and the task routes hide them.
+    await db.delete(projects).where(eq(projects.id, projectId));
 
-    // TODO: Delete tasks
-
-    await databases.deleteDocument(DATABASE_ID, PROJECTS_ID, projectId);
-
-    return c.json({ data: { $id: existingProject.$id } });
+    return c.json({ data: { $id: projectId } });
   });
+
 export default app;

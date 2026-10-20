@@ -1,42 +1,28 @@
 import { z } from 'zod';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { ID, Query, type Databases } from 'node-appwrite';
+import { ID, Query } from 'node-appwrite';
 import { zValidator } from '@hono/zod-validator';
 
 import { listMembers, requireMember } from '@/features/members/utils';
-import { Project } from '@/features/projects/types';
+import { findProject, listProjects } from '@/features/projects/utils';
 
 import { sessionMiddleware } from '@/lib/session-middleware';
-import { DATABASE_ID, PROJECTS_ID, TASKS_ID } from '@/config';
+import { DATABASE_ID, TASKS_ID } from '@/config';
 
 import { createTaskSchema } from '../schemas';
 import { Task, TaskStatus } from '../types';
 
-const isInWorkspace = async (
-  databases: Databases,
-  collectionId: string,
-  documentId: string,
-  workspaceId: string,
-) => {
-  const { total } = await databases.listDocuments(DATABASE_ID, collectionId, [
-    Query.equal('$id', documentId),
-    Query.equal('workspaceId', workspaceId),
-    Query.limit(1),
-  ]);
-
-  return total > 0;
-};
-
 // A task may only point at a project and an assignee from its own workspace
 const requireInWorkspace = async (
-  databases: Databases,
   workspaceId: string,
   { projectId, assigneeId }: { projectId?: string; assigneeId?: string },
 ) => {
   const [projectOk, assigneeOk] = await Promise.all([
     projectId
-      ? isInWorkspace(databases, PROJECTS_ID, projectId, workspaceId)
+      ? findProject(projectId).then(
+          (project) => project?.workspaceId === workspaceId,
+        )
       : true,
     assigneeId
       ? listMembers(workspaceId, [assigneeId]).then((found) => found.length > 0)
@@ -108,32 +94,12 @@ const app = new Hono()
       const assigneeIds = tasks.documents.map((tasks) => tasks.assigneeId);
 
       // Only this workspace's projects and members, even if a task points elsewhere
-      const listProjects = async () => {
-        const uniqueIds = [...new Set(projectIds)];
-
-        if (uniqueIds.length === 0) {
-          return [];
-        }
-
-        const { documents } = await databases.listDocuments<Project>(
-          DATABASE_ID,
-          PROJECTS_ID,
-          [
-            Query.equal('$id', uniqueIds),
-            Query.equal('workspaceId', workspaceId),
-            Query.limit(uniqueIds.length),
-          ],
-        );
-
-        return documents;
-      };
-
       const [projects, assignees] = await Promise.all([
-        listProjects(),
-        listMembers(workspaceId, assigneeIds),
+        listProjects(workspaceId, [...new Set(projectIds)]),
+        listMembers(workspaceId, [...new Set(assigneeIds)]),
       ]);
 
-      const populatedTasks = tasks.documents.map((task) => {
+      const populatedTasks = tasks.documents.flatMap((task) => {
         const project = projects.find(
           (project) => project.$id === task.projectId,
         );
@@ -141,17 +107,18 @@ const app = new Hono()
           (assignee) => assignee.$id === task.assigneeId,
         );
 
-        return {
-          ...task,
-          project,
-          assignee,
-        };
+        // Until 4c: a deleted project's tasks are still in Appwrite, so hide them
+        if (!project) {
+          return [];
+        }
+
+        return [{ ...task, project, assignee }];
       });
 
       return c.json({
         data: {
-          ...tasks,
           documents: populatedTasks,
+          total: populatedTasks.length,
         },
       });
     },
@@ -166,7 +133,7 @@ const app = new Hono()
         c.req.valid('json');
 
       await requireMember(c, workspaceId);
-      await requireInWorkspace(databases, workspaceId, {
+      await requireInWorkspace(workspaceId, {
         projectId,
         assigneeId,
       });
@@ -239,7 +206,7 @@ const app = new Hono()
       );
 
       await requireMember(c, existingTask.workspaceId);
-      await requireInWorkspace(databases, existingTask.workspaceId, {
+      await requireInWorkspace(existingTask.workspaceId, {
         projectId,
         assigneeId,
       });
@@ -274,16 +241,15 @@ const app = new Hono()
     await requireMember(c, task.workspaceId);
 
     // Only this workspace's project and member, even if the task points elsewhere
-    const [projects, [assignee]] = await Promise.all([
-      databases.listDocuments<Project>(DATABASE_ID, PROJECTS_ID, [
-        Query.equal('$id', task.projectId),
-        Query.equal('workspaceId', task.workspaceId),
-        Query.limit(1),
-      ]),
+    const [[project], [assignee]] = await Promise.all([
+      listProjects(task.workspaceId, [task.projectId]),
       listMembers(task.workspaceId, [task.assigneeId]),
     ]);
 
-    const project = projects.documents[0];
+    // Until 4c: a deleted project's tasks are still in Appwrite
+    if (!project) {
+      return c.json({ error: 'Not found' }, 404);
+    }
 
     return c.json({
       data: {

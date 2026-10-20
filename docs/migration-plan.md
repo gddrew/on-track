@@ -196,7 +196,13 @@ await requireMember(c, workspaceId, { role: MemberRole.ADMIN });               /
   - Responses keep the Appwrite shape via `toApi` / `toApiList` (`src/db/api-shape.ts`).
   - Temporary: deleting a workspace leaves its projects and tasks in Appwrite (unreachable) until 4b/4c.
   - **Permanent tests:** `bun test` (`tests/`) calls the API in-process against `TEST_DATABASE_URL` from `.env.test.local`, a local `on_track_test` database. It refuses any database whose name doesn't end in `_test`, and email is stubbed out. 37 tests cover workspaces and members, including cross-workspace access; with the membership check disabled, 22 fail. The Hono app moved to `src/server/app.ts` so tests can import it.
-- **4b: projects.** Images, admin-only delete, deleting a project removes its tasks.
+- **4b: projects.** ✅ Done.
+  - Projects are in Postgres. Shared lookups in `src/features/projects/utils.ts`: `requireProject` answers a missing project and another workspace's project with the same 404, and `listProjects` replaces the Appwrite lookups in the task routes.
+  - Any member can create and edit; only admins can delete. Images use the same rules as workspaces (PNG, JPEG, GIF or WebP, up to 1 MB, no SVG); editing without a new file keeps the image.
+  - Deleting a project or workspace removes its projects in Postgres; the database will remove their tasks once 4c moves them.
+  - Temporary until 4c: Appwrite tasks whose project no longer exists in Postgres (including every task created before 4b) are hidden from the task list, and opening one gives 404.
+  - Known, not new: "Remove Image" on the edit forms doesn't save; the image comes back. Same for workspaces.
+  - Tests: 16 more (53 in all). With the project access check disabled, 4 fail.
 - **4c: tasks.** One query for the list with project and assignee; kanban bulk update in one transaction; search; unassigned tasks in the UI.
 - **4d: analytics.** One query per page; fix the "last month overdue" bug.
 - **4e: remove Appwrite.** Drop `node-appwrite` and its settings and the test stand-in; back to Node 26.

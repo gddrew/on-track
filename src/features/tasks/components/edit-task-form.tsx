@@ -40,7 +40,7 @@ const formSchema = createTaskSchema.omit({
 
 interface EditTaskFormProps {
   onCancel?: () => void;
-  projectOptions: { id: string; name: string; imageUrl: string }[];
+  projectOptions: { id: string; name: string; imageUrl: string | null }[];
   memberOptions: { id: string; name: string }[];
   initialValues: Task;
 }
