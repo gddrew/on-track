@@ -14,9 +14,9 @@ import { TaskActions } from './task-actions';
 import { TaskDate } from './task-date';
 import { type DataTableFeatures } from './data-table';
 
-import { Task } from '../types';
+import { PopulatedTask } from '../types';
 
-export const columns: ColumnDef<DataTableFeatures, Task>[] = [
+export const columns: ColumnDef<DataTableFeatures, PopulatedTask>[] = [
   {
     accessorKey: 'name',
     header: ({ column }) => {
@@ -85,9 +85,9 @@ export const columns: ColumnDef<DataTableFeatures, Task>[] = [
           <MemberAvatar
             className='size-6'
             fallbackClassName='text-sx'
-            name={assignee.name}
+            name={assignee?.name}
           />
-          <p className='line-clamp-1'>{assignee.name}</p>
+          <p className='line-clamp-1'>{assignee?.name ?? 'Unassigned'}</p>
         </div>
       );
     },

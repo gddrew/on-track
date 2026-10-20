@@ -3,7 +3,8 @@ import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 interface MemberAvatarProps {
-  name: string;
+  // Leave out for an unassigned task
+  name?: string | null;
   className?: string;
   fallbackClassName?: string;
 };
@@ -19,7 +20,7 @@ export const MemberAvatar = ({
         'bg-neutral-200 font-medium text-neutral-500 flex items-center justify-center',
         fallbackClassName
       )}>
-        {name.charAt(0).toUpperCase()}
+        {name ? name.charAt(0).toUpperCase() : '?'}
       </AvatarFallback>
     </Avatar>
   );

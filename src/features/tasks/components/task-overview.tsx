@@ -10,11 +10,11 @@ import { DottedSeparator } from '@/components/dotted-separator';
 import { TaskDate } from './task-date';
 import { OverviewProperty } from './overview-property';
 
-import { Task } from '../types';
+import { PopulatedTask } from '../types';
 import { useEditTaskModal } from '../hooks/use-edit-task-modal';
 
 interface TaskOverviewProps {
-  task: Task;
+  task: PopulatedTask;
 }
 
 export const TaskOverview = ({ task }: TaskOverviewProps) => {
@@ -33,8 +33,10 @@ export const TaskOverview = ({ task }: TaskOverviewProps) => {
         <DottedSeparator className='my-4' />
         <div className='flex flex-col gap-y-4'>
           <OverviewProperty label='Assignee'>
-            <MemberAvatar name={task.assignee.name} className='size-6' />
-            <p className='text-sm font-medium'>{task.assignee.name}</p>
+            <MemberAvatar name={task.assignee?.name} className='size-6' />
+            <p className='text-sm font-medium'>
+              {task.assignee?.name ?? 'Unassigned'}
+            </p>
           </OverviewProperty>
           <OverviewProperty label='Due Date'>
             <TaskDate value={task.dueDate} className='text-sm font-medium' />

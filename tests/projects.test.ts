@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { projects } from '@/db/schema';
 
 import {
+  createProject,
   createUser,
   createWorkspace,
   joinWorkspace,
@@ -22,21 +23,6 @@ let bob: TestUser;
 let carol: TestUser;
 let workspaceA: Awaited<ReturnType<typeof createWorkspace>>;
 let workspaceB: Awaited<ReturnType<typeof createWorkspace>>;
-
-const createProject = async (
-  as: TestUser,
-  workspaceId: string,
-  name: string,
-  image?: File,
-) => {
-  const { status, data } = await request(as, 'POST', '/projects', {
-    form: { name, workspaceId, ...(image && { image }) },
-  });
-
-  if (status !== 200) throw new Error(`createProject failed: ${status}`);
-
-  return data as { $id: string; name: string; imageUrl: string | null };
-};
 
 beforeAll(async () => {
   await resetDatabase();

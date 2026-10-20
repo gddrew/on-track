@@ -100,6 +100,21 @@ export const joinWorkspace = async (
   if (status !== 200) throw new Error(`joinWorkspace failed: ${status}`);
 };
 
+export const createProject = async (
+  as: TestUser,
+  workspaceId: string,
+  name: string,
+  image?: File,
+) => {
+  const { status, data } = await request(as, 'POST', '/projects', {
+    form: { name, workspaceId, ...(image && { image }) },
+  });
+
+  if (status !== 200) throw new Error(`createProject failed: ${status}`);
+
+  return data as { $id: string; name: string; imageUrl: string | null };
+};
+
 export const listMembersOf = async (as: TestUser, workspaceId: string) => {
   const { data } = await request(as, 'GET', `/members?workspaceId=${workspaceId}`);
 

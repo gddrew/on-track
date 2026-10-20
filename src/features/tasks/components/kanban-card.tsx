@@ -8,10 +8,10 @@ import { DottedSeparator } from '@/components/dotted-separator';
 import { TaskDate } from './task-date';
 import { TaskActions } from './task-actions';
 
-import { Task } from '../types';
+import { PopulatedTask } from '../types';
 
 interface KanbanCardProps {
-  task: Task;
+  task: PopulatedTask;
 }
 
 export const KanbanCard = ({ task }: KanbanCardProps) => {
@@ -26,7 +26,7 @@ export const KanbanCard = ({ task }: KanbanCardProps) => {
       <DottedSeparator />
       <div className='flex items-center gap-x-1.5'>
         <MemberAvatar
-          name={task.assignee.name}
+          name={task.assignee?.name}
           fallbackClassName='text-[10px]'
         />
         <div className='size-1 rounded-full bg-neutral-300' />

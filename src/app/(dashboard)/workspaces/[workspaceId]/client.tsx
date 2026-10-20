@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { CalendarIcon, PlusIcon, SettingsIcon } from 'lucide-react';
 
-import { Task } from '@/features/tasks/types';
+import { PopulatedTask } from '@/features/tasks/types';
 import { PopulatedMember } from '@/features/members/types';
 import { Project } from '@/features/projects/types';
 import { useGetTasks } from '@/features/tasks/api/use-get-tasks';
@@ -66,7 +66,7 @@ export const WorkspaceIdClient = () => {
 };
 
 interface TaskListProps {
-  data: Task[];
+  data: PopulatedTask[];
   total: number;
 }
 
