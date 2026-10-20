@@ -197,7 +197,7 @@ export const EditWorkspaceForm = ({
                         <div className='flex flex-col'>
                           <p className='text-sm'>Workspace Icon</p>
                           <p className='text-sm text-muted-foreground'>
-                            JPG, PNG, SVG or JPEG, max 1MB
+                            PNG, JPEG, GIF or WebP, max 1 MB
                           </p>
                           <input
                             className='hidden'

@@ -11,6 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useWorkspaceId } from '@/features/workspaces/hooks/use-workspace-id';
 
 import { cn } from '@/lib/utils';
+import { IMAGE_ACCEPT } from '@/lib/images';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -129,12 +130,12 @@ export const CreateProjectForm = ({ onCancel }: CreateProjectFormProps) => {
                       <div className='flex flex-col'>
                         <p className='text-sm'>Project Icon</p>
                         <p className='text-sm text-muted-foreground'>
-                          JPG, PNG, SVG or JPEG, max 1mb
+                          PNG, JPEG, GIF or WebP, max 1 MB
                         </p>
                         <input
                           className='hidden'
                           type='file'
-                          accept='.jpg, .png, .jpeg, .svg'
+                          accept={IMAGE_ACCEPT}
                           ref={inputRef}
                           onChange={handleImageChange}
                           disabled={isPending}

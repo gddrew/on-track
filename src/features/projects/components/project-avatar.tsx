@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 interface ProjectAvatarProps {
-  image?: string;
+  image?: string | null;
   name: string;
   className?: string;
   fallbackClassName?: string;

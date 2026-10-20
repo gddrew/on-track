@@ -304,7 +304,7 @@ const app = new Hono()
 
     await requireMember(c, workspaceId, { role: MemberRole.ADMIN });
 
-    // Removes its members too. Until 4b/4c move them, its projects and tasks are
+    // Removes its members and projects too. Until 4c moves them, its tasks are
     // left behind in Appwrite, unreachable.
     await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
 
