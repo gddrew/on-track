@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-import { TaskStatus } from '../types';
+import { TaskStatus, UNASSIGNED } from '../types';
 import { useTaskFilters } from '../hooks/use-task-filters';
 
 interface DataFiltersProps {
@@ -95,6 +95,7 @@ export const DataFilters = ({ hideProjectFilter }: DataFiltersProps) => {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value='all'>All members</SelectItem>
+          <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
           <SelectSeparator />
           {memberOptions?.map((member) => (
             <SelectItem key={member.value} value={member.value}>

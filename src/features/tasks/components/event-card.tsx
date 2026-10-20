@@ -13,7 +13,7 @@ import { TaskStatus } from '../types';
 
 interface EventCardProps {
   title: string;
-  assignee: PopulatedMember;
+  assignee: PopulatedMember | null;
   project: Project;
   status: TaskStatus;
   id: string;

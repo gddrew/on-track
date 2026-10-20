@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-import { Task, TaskStatus } from '../types';
+import { PopulatedTask, TaskStatus, UNASSIGNED } from '../types';
 import { createTaskSchema } from '../schemas';
 import { useUpdateTask } from '../api/use-update-task';
 
@@ -42,7 +42,7 @@ interface EditTaskFormProps {
   onCancel?: () => void;
   projectOptions: { id: string; name: string; imageUrl: string | null }[];
   memberOptions: { id: string; name: string }[];
-  initialValues: Task;
+  initialValues: PopulatedTask;
 }
 
 export const EditTaskForm = ({
@@ -120,8 +120,10 @@ export const EditTaskForm = ({
                   <FormItem>
                     <FormLabel>Assigned To</FormLabel>
                     <Select
-                      defaultValue={field.value}
-                      onValueChange={field.onChange}
+                      value={field.value ?? UNASSIGNED}
+                      onValueChange={(value) =>
+                        field.onChange(value === UNASSIGNED ? null : value)
+                      }
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -130,6 +132,12 @@ export const EditTaskForm = ({
                       </FormControl>
                       <FormMessage />
                       <SelectContent>
+                        <SelectItem value={UNASSIGNED}>
+                          <div className='flex items-center gap-x-2'>
+                            <MemberAvatar className='size-6' />
+                            Unassigned
+                          </div>
+                        </SelectItem>
                         {memberOptions.map((member) => (
                           <SelectItem key={member.id} value={member.id}>
                             <div className='flex items-center gap-x-2'>

@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 
 import { EventCard } from './event-card';
 
-import { Task } from '../types';
+import { PopulatedTask } from '../types';
 
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './data-calendar.css';
@@ -63,7 +63,7 @@ const CustomToolbar = ({ date, onNavigate }: CustomToolbarProps) => {
 };
 
 interface DataCalendarProps {
-  data: Task[];
+  data: PopulatedTask[];
 }
 
 export const DataCalendar = ({ data }: DataCalendarProps) => {

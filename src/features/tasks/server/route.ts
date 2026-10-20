@@ -1,22 +1,117 @@
 import { z } from 'zod';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { ID, Query } from 'node-appwrite';
 import { zValidator } from '@hono/zod-validator';
+import {
+  and,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  max,
+  type SQL,
+} from 'drizzle-orm';
 
+import { db } from '@/db';
+import { members, projects, tasks, user } from '@/db/schema';
+import { isUuid, toApi } from '@/db/api-shape';
 import { listMembers, requireMember } from '@/features/members/utils';
-import { findProject, listProjects } from '@/features/projects/utils';
+import { MemberRole } from '@/features/members/types';
+import { findProject } from '@/features/projects/utils';
 
 import { sessionMiddleware } from '@/lib/session-middleware';
-import { DATABASE_ID, TASKS_ID } from '@/config';
 
 import { createTaskSchema } from '../schemas';
-import { Task, TaskStatus } from '../types';
+import { PopulatedTask, Task, TaskStatus, UNASSIGNED } from '../types';
+
+type TaskRow = typeof tasks.$inferSelect;
+
+const toApiTask = (row: TaskRow): Task => ({
+  ...toApi(row),
+  status: row.status as TaskStatus,
+  dueDate: row.dueDate.toISOString(),
+});
+
+// Tasks with their project and assignee in one query. The joins only match a
+// project and member of the task's own workspace.
+const selectPopulatedTasks = async (where: SQL | undefined) => {
+  const rows = await db
+    .select({ task: tasks, project: projects, member: members, user })
+    .from(tasks)
+    .innerJoin(
+      projects,
+      and(
+        eq(projects.id, tasks.projectId),
+        eq(projects.workspaceId, tasks.workspaceId),
+      ),
+    )
+    .leftJoin(
+      members,
+      and(
+        eq(members.id, tasks.assigneeId),
+        eq(members.workspaceId, tasks.workspaceId),
+      ),
+    )
+    .leftJoin(user, eq(user.id, members.userId))
+    .where(where)
+    .orderBy(desc(tasks.createdAt));
+
+  return rows.map(
+    ({ task, project, member, user }): PopulatedTask => ({
+      ...toApiTask(task),
+      project: toApi(project),
+      assignee:
+        member && user
+          ? {
+              ...toApi(member),
+              role: member.role as MemberRole,
+              name: user.name || user.email,
+              email: user.email,
+            }
+          : null,
+    }),
+  );
+};
+
+const findTask = async (taskId: string) => {
+  if (!isUuid(taskId)) {
+    return undefined;
+  }
+
+  const [task] = await db
+    .select()
+    .from(tasks)
+    .where(eq(tasks.id, taskId))
+    .limit(1);
+
+  return task;
+};
+
+// A task the signed-in user can reach. A missing task and another workspace's
+// task get the same 404, so ids can't be probed.
+const requireTask = async (
+  c: Parameters<typeof requireMember>[0],
+  taskId: string,
+) => {
+  const task = await findTask(taskId);
+
+  if (!task) {
+    throw new HTTPException(404, { message: 'Not found' });
+  }
+
+  await requireMember(c, task.workspaceId, { orNotFound: true });
+
+  return task;
+};
 
 // A task may only point at a project and an assignee from its own workspace
 const requireInWorkspace = async (
   workspaceId: string,
-  { projectId, assigneeId }: { projectId?: string; assigneeId?: string },
+  {
+    projectId,
+    assigneeId,
+  }: { projectId?: string; assigneeId?: string | null },
 ) => {
   const [projectOk, assigneeOk] = await Promise.all([
     projectId
@@ -36,6 +131,9 @@ const requireInWorkspace = async (
   }
 };
 
+// Match the search text literally: % and _ are wildcards in LIKE
+const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&');
+
 const app = new Hono()
   .get(
     '/',
@@ -45,82 +143,43 @@ const app = new Hono()
       z.object({
         workspaceId: z.string(),
         projectId: z.string().nullish(),
+        // A member id, or UNASSIGNED for tasks with nobody assigned
         assigneeId: z.string().nullish(),
         status: z.enum(TaskStatus).nullish(),
         search: z.string().nullish(),
-        dueDate: z.string().nullish(),
+        dueDate: z.iso.datetime().nullish(),
       }),
     ),
     async (c) => {
-      const databases = c.get('databases');
-
       const { workspaceId, projectId, status, search, assigneeId, dueDate } =
         c.req.valid('query');
 
       await requireMember(c, workspaceId);
 
-      const query = [
-        Query.equal('workspaceId', workspaceId),
-        Query.orderDesc('$createdAt'),
-      ];
-
-      if (projectId) {
-        query.push(Query.equal('projectId', projectId));
+      // An id that can't exist matches nothing
+      if (
+        (projectId && !isUuid(projectId)) ||
+        (assigneeId && assigneeId !== UNASSIGNED && !isUuid(assigneeId))
+      ) {
+        return c.json({ data: { documents: [], total: 0 } });
       }
 
-      if (status) {
-        query.push(Query.equal('status', status));
-      }
-
-      if (assigneeId) {
-        query.push(Query.equal('assigneeId', assigneeId));
-      }
-
-      if (dueDate) {
-        query.push(Query.equal('dueDate', dueDate));
-      }
-
-      if (search) {
-        query.push(Query.search('name', search));
-      }
-
-      const tasks = await databases.listDocuments<Task>(
-        DATABASE_ID,
-        TASKS_ID,
-        query,
+      const documents = await selectPopulatedTasks(
+        and(
+          eq(tasks.workspaceId, workspaceId),
+          projectId ? eq(tasks.projectId, projectId) : undefined,
+          status ? eq(tasks.status, status) : undefined,
+          assigneeId === UNASSIGNED
+            ? isNull(tasks.assigneeId)
+            : assigneeId
+              ? eq(tasks.assigneeId, assigneeId)
+              : undefined,
+          dueDate ? eq(tasks.dueDate, new Date(dueDate)) : undefined,
+          search ? ilike(tasks.name, `%${escapeLike(search)}%`) : undefined,
+        ),
       );
 
-      const projectIds = tasks.documents.map((tasks) => tasks.projectId);
-      const assigneeIds = tasks.documents.map((tasks) => tasks.assigneeId);
-
-      // Only this workspace's projects and members, even if a task points elsewhere
-      const [projects, assignees] = await Promise.all([
-        listProjects(workspaceId, [...new Set(projectIds)]),
-        listMembers(workspaceId, [...new Set(assigneeIds)]),
-      ]);
-
-      const populatedTasks = tasks.documents.flatMap((task) => {
-        const project = projects.find(
-          (project) => project.$id === task.projectId,
-        );
-        const assignee = assignees.find(
-          (assignee) => assignee.$id === task.assigneeId,
-        );
-
-        // Until 4c: a deleted project's tasks are still in Appwrite, so hide them
-        if (!project) {
-          return [];
-        }
-
-        return [{ ...task, project, assignee }];
-      });
-
-      return c.json({
-        data: {
-          documents: populatedTasks,
-          total: populatedTasks.length,
-        },
-      });
+      return c.json({ data: { documents, total: documents.length } });
     },
   )
   .post(
@@ -128,136 +187,84 @@ const app = new Hono()
     sessionMiddleware,
     zValidator('json', createTaskSchema),
     async (c) => {
-      const databases = c.get('databases');
-      const { name, status, workspaceId, projectId, dueDate, assigneeId } =
-        c.req.valid('json');
+      const {
+        name,
+        status,
+        workspaceId,
+        projectId,
+        dueDate,
+        assigneeId,
+        description,
+      } = c.req.valid('json');
 
       await requireMember(c, workspaceId);
-      await requireInWorkspace(workspaceId, {
-        projectId,
-        assigneeId,
-      });
+      await requireInWorkspace(workspaceId, { projectId, assigneeId });
 
-      const highestPositionTask = await databases.listDocuments(
-        DATABASE_ID,
-        TASKS_ID,
-        [
-          Query.equal('status', status),
-          Query.equal('workspaceId', workspaceId),
-          Query.orderAsc('position'),
-          Query.limit(1),
-        ],
-      );
+      // New tasks go to the bottom of their kanban column
+      const [{ highest }] = await db
+        .select({ highest: max(tasks.position) })
+        .from(tasks)
+        .where(and(eq(tasks.workspaceId, workspaceId), eq(tasks.status, status)));
 
-      const newPosition =
-        highestPositionTask.documents.length > 0
-          ? highestPositionTask.documents[0].position + 1000
-          : 1000;
-
-      const task = await databases.createDocument(
-        DATABASE_ID,
-        TASKS_ID,
-        ID.unique(),
-        {
+      const [task] = await db
+        .insert(tasks)
+        .values({
           name,
           status,
           workspaceId,
           projectId,
           dueDate,
-          assigneeId,
-          position: newPosition,
-        },
-      );
+          assigneeId: assigneeId ?? null,
+          description: description ?? null,
+          position: (highest ?? 0) + 1000,
+        })
+        .returning();
 
-      return c.json({ data: task });
+      return c.json({ data: toApiTask(task) });
     },
   )
   .delete('/:taskId', sessionMiddleware, async (c) => {
-    const databases = c.get('databases');
-    const { taskId } = c.req.param();
+    const task = await requireTask(c, c.req.param('taskId'));
 
-    const task = await databases.getDocument<Task>(
-      DATABASE_ID,
-      TASKS_ID,
-      taskId,
-    );
+    await db.delete(tasks).where(eq(tasks.id, task.id));
 
-    await requireMember(c, task.workspaceId);
-
-    await databases.deleteDocument(DATABASE_ID, TASKS_ID, taskId);
-
-    return c.json({ data: { $id: task.$id } });
+    return c.json({ data: { $id: task.id } });
   })
   .patch(
     '/:taskId',
     sessionMiddleware,
-    zValidator('json', createTaskSchema.partial()),
+    zValidator('json', createTaskSchema.omit({ workspaceId: true }).partial()),
     async (c) => {
-      const databases = c.get('databases');
       const { name, status, description, projectId, dueDate, assigneeId } =
         c.req.valid('json');
 
-      const { taskId } = c.req.param();
+      const existingTask = await requireTask(c, c.req.param('taskId'));
 
-      const existingTask = await databases.getDocument<Task>(
-        DATABASE_ID,
-        TASKS_ID,
-        taskId,
-      );
-
-      await requireMember(c, existingTask.workspaceId);
       await requireInWorkspace(existingTask.workspaceId, {
         projectId,
         assigneeId,
       });
 
-      const task = await databases.updateDocument<Task>(
-        DATABASE_ID,
-        TASKS_ID,
-        taskId,
-        {
-          name,
-          status,
-          projectId,
-          dueDate,
-          assigneeId,
-          description,
-        },
-      );
+      // Fields left out stay as they are; assigneeId null unassigns the task
+      const [task] = await db
+        .update(tasks)
+        .set({ name, status, description, projectId, dueDate, assigneeId })
+        .where(eq(tasks.id, existingTask.id))
+        .returning();
 
-      return c.json({ data: task });
+      return c.json({ data: toApiTask(task) });
     },
   )
   .get('/:taskId', sessionMiddleware, async (c) => {
-    const databases = c.get('databases');
-    const { taskId } = c.req.param();
+    const { id } = await requireTask(c, c.req.param('taskId'));
 
-    const task = await databases.getDocument<Task>(
-      DATABASE_ID,
-      TASKS_ID,
-      taskId,
-    );
+    const [task] = await selectPopulatedTasks(eq(tasks.id, id));
 
-    await requireMember(c, task.workspaceId);
-
-    // Only this workspace's project and member, even if the task points elsewhere
-    const [[project], [assignee]] = await Promise.all([
-      listProjects(task.workspaceId, [task.projectId]),
-      listMembers(task.workspaceId, [task.assigneeId]),
-    ]);
-
-    // Until 4c: a deleted project's tasks are still in Appwrite
-    if (!project) {
+    if (!task) {
       return c.json({ error: 'Not found' }, 404);
     }
 
-    return c.json({
-      data: {
-        ...task,
-        project,
-        assignee,
-      },
-    });
+    return c.json({ data: task });
   })
   .post(
     '/bulk-update',
@@ -277,25 +284,23 @@ const app = new Hono()
       }),
     ),
     async (c) => {
-      const databases = c.get('databases');
-      const { tasks } = await c.req.valid('json');
+      const { tasks: updates } = c.req.valid('json');
 
-      const taskIds = [...new Set(tasks.map((task) => task.$id))];
+      const taskIds = [...new Set(updates.map((task) => task.$id))];
 
-      // Exact ids, all of them: every task sent must be checked before any is updated
-      const tasksToUpdate = await databases.listDocuments<Task>(
-        DATABASE_ID,
-        TASKS_ID,
-        [Query.equal('$id', taskIds), Query.limit(taskIds.length)],
-      );
+      // Every task sent must be found and checked before any is updated
+      const found = taskIds.every(isUuid)
+        ? await db
+            .select({ id: tasks.id, workspaceId: tasks.workspaceId })
+            .from(tasks)
+            .where(inArray(tasks.id, taskIds))
+        : [];
 
-      if (tasksToUpdate.documents.length !== taskIds.length) {
+      if (found.length !== taskIds.length) {
         return c.json({ error: 'Some tasks were not found' }, 400);
       }
 
-      const workspaceIds = new Set(
-        tasksToUpdate.documents.map((task) => task.workspaceId),
-      );
+      const workspaceIds = new Set(found.map((task) => task.workspaceId));
 
       if (workspaceIds.size !== 1) {
         return c.json(
@@ -308,17 +313,24 @@ const app = new Hono()
 
       await requireMember(c, workspaceId);
 
-      const updatedTasks = await Promise.all(
-        tasks.map(async (task) => {
-          const { $id, status, position } = task;
-          return databases.updateDocument<Task>(DATABASE_ID, TASKS_ID, $id, {
-            status,
-            position,
-          });
-        }),
-      );
+      // All of a drag's moves are saved together or not at all
+      const updatedTasks = await db.transaction(async (tx) => {
+        const updated: TaskRow[] = [];
 
-      return c.json({ data: updatedTasks });
+        for (const { $id, status, position } of updates) {
+          const [task] = await tx
+            .update(tasks)
+            .set({ status, position })
+            .where(eq(tasks.id, $id))
+            .returning();
+
+          updated.push(task);
+        }
+
+        return updated;
+      });
+
+      return c.json({ data: updatedTasks.map(toApiTask) });
     },
   );
 

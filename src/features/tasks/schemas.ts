@@ -14,6 +14,7 @@ export const createTaskSchema = z.object({
   workspaceId: z.string(requiredError).trim().min(1, 'Required'),
   projectId: z.string(requiredError).trim().min(1, 'Required'),
   dueDate: z.coerce.date<Date>({ error: 'Invalid date' }),
-  assigneeId: z.string(requiredError).trim().min(1, 'Required'),
-  description: z.string().optional(),
+  // null (or left out) means nobody is assigned
+  assigneeId: z.string().trim().min(1).nullish(),
+  description: z.string().nullish(),
 });

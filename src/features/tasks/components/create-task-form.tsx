@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-import { TaskStatus } from '../types';
+import { TaskStatus, UNASSIGNED } from '../types';
 import { createTaskSchema } from '../schemas';
 import { useCreateTask } from '../api/use-create-task';
 
@@ -112,8 +112,10 @@ export const CreateTaskForm = ({
                   <FormItem>
                     <FormLabel>Assigned To</FormLabel>
                     <Select
-                      defaultValue={field.value}
-                      onValueChange={field.onChange}
+                      value={field.value ?? UNASSIGNED}
+                      onValueChange={(value) =>
+                        field.onChange(value === UNASSIGNED ? null : value)
+                      }
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -122,6 +124,12 @@ export const CreateTaskForm = ({
                       </FormControl>
                       <FormMessage />
                       <SelectContent>
+                        <SelectItem value={UNASSIGNED}>
+                          <div className='flex items-center gap-x-2'>
+                            <MemberAvatar className='size-6' />
+                            Unassigned
+                          </div>
+                        </SelectItem>
                         {memberOptions.map((member) => (
                           <SelectItem key={member.id} value={member.id}>
                             <div className='flex items-center gap-x-2'>

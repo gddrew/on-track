@@ -203,7 +203,16 @@ await requireMember(c, workspaceId, { role: MemberRole.ADMIN });               /
   - Temporary until 4c: Appwrite tasks whose project no longer exists in Postgres (including every task created before 4b) are hidden from the task list, and opening one gives 404.
   - Known, not new: "Remove Image" on the edit forms doesn't save; the image comes back. Same for workspaces.
   - Tests: 16 more (53 in all). With the project access check disabled, 4 fail.
-- **4c: tasks.** One query for the list with project and assignee; kanban bulk update in one transaction; search; unassigned tasks in the UI.
+- **4c: tasks.** ✅ Done.
+  - Tasks are in Postgres. The list and detail routes fetch each task with its project and assignee in one query; the joins only match a project and member of the task's own workspace.
+  - Kanban drag and drop saves all its moves in one transaction. A missing task id, or tasks from two workspaces, are refused before anything changes.
+  - Search is a case-insensitive `ilike`; `%` and `_` in the search text match literally.
+  - Tasks can be unassigned: an "Unassigned" choice in the create and edit forms and in the assignee filter, and "Unassigned" with a `?` avatar in the table, kanban, calendar and detail page. Removing a member unassigns their tasks.
+  - New tasks go to the bottom of their kanban column (before: just after the first task).
+  - Deleting a project or workspace removes its tasks.
+  - The leftover `console.log` in `use-get-tasks` is gone.
+  - Temporary until 4d: the analytics cards still count Appwrite's old tasks.
+  - Tests: 27 more (80 in all). With the task access checks disabled, 7 fail.
 - **4d: analytics.** One query per page; fix the "last month overdue" bug.
 - **4e: remove Appwrite.** Drop `node-appwrite` and its settings and the test stand-in; back to Node 26.
 

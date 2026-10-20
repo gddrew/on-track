@@ -10,7 +10,7 @@ import {
 import { KanbanColumnHeader } from './kanban-column-header';
 import { KanbanCard } from './kanban-card';
 
-import { Task, TaskStatus } from '../types';
+import { PopulatedTask, TaskStatus } from '../types';
 
 const boards: TaskStatus[] = [
   TaskStatus.BACKLOG,
@@ -22,17 +22,17 @@ const boards: TaskStatus[] = [
 ];
 
 type TasksState = {
-  [key in TaskStatus]: Task[];
+  [key in TaskStatus]: PopulatedTask[];
 };
 
 interface DataKanbanProps {
-  data: Task[];
+  data: PopulatedTask[];
   onChange: (
     tasks: { $id: string; status: TaskStatus; position: number }[],
   ) => void;
 }
 
-const groupTasks = (data: Task[]): TasksState => {
+const groupTasks = (data: PopulatedTask[]): TasksState => {
   const tasks: TasksState = {
     [TaskStatus.BACKLOG]: [],
     [TaskStatus.TODO]: [],

@@ -64,7 +64,7 @@ const app = new Hono()
     const databases = c.get('databases');
     const { projectId } = c.req.param();
 
-    // Tasks are still in Appwrite until 4c; 4d replaces these queries
+    // Still reads Appwrite's old tasks; 4d replaces these queries
     const { member } = await requireProject(c, projectId);
 
     const now = new Date();
@@ -256,8 +256,7 @@ const app = new Hono()
 
     await requireProject(c, projectId, { role: MemberRole.ADMIN });
 
-    // The database removes its tasks too. Until 4c moves them, its Appwrite tasks
-    // are left behind and the task routes hide them.
+    // The database removes its tasks too
     await db.delete(projects).where(eq(projects.id, projectId));
 
     return c.json({ data: { $id: projectId } });
