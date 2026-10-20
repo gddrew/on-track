@@ -22,8 +22,8 @@ Done means:
 | Auth     | Better Auth (email/password, Google, GitHub; Microsoft later) |
 | Files    | Unchanged for now: images stay base64 data URLs in a `text` column (see Phase 6) |
 | Email    | SMTP via a transactional provider (needed for password reset and verification) |
-| Hosting  | One VPS, Docker Compose: `app`, `postgres`, `caddy` |
-| Backups  | Nightly `pg_dump` to S3-compatible object storage |
+| Hosting  | Fedora at home: Podman + Quadlet, native Postgres, Cloudflare Tunnel (see Phase 7) |
+| Backups  | Nightly `pg_dump` to another machine at home; off-site later (see Phase 7) |
 
 ## Guiding rules
 
@@ -257,21 +257,40 @@ Existing sessions won't carry over; everyone signs in again once.
 
 ## Phase 6: Uploaded images (can wait until after launch)
 
-Workspace and project images are uploaded to an Appwrite bucket, read back, and stored as base64 data URLs in `imageUrl`, so the bucket copy is never used. For the migration, drop the bucket upload and store the data URL directly, with a size limit (for example 1 MB) in the Zod schema.
+Done during Phase 4: the Appwrite bucket is gone. Workspace and project images are stored as data URLs in `imageUrl`, limited to PNG, JPEG, GIF or WebP up to 1 MB, no SVG.
 
-Later, move images to S3-compatible storage or disk served by Caddy, and store only a URL. That keeps rows small and list responses fast.
+**Decided 2026-10-20: images only for users and workspaces, as in Jira.** Projects, and later initiatives, epics, features, stories, tasks and bugs, get a built-in icon for their type instead of an upload.
+
+- **Workspaces:** keep the uploaded image.
+- **Users:** add an avatar. Better Auth's `user.image` column already exists, and GitHub and Google sign-in should fill it with the account's picture; today `MemberAvatar` shows only an initial. Email/password users need an upload (or stay with the initial).
+- **Projects:** drop the image upload and the `projects.image_url` column, and show a fixed icon. This can happen now, or as part of the Agile hierarchy, which replaces projects anyway.
+- **Storage:** with only users and workspaces, data URLs stay small and few. Moving them to disk or S3-compatible storage served by Caddy (storing only a URL) is still the better long-term choice, but not urgent.
 
 ## Phase 7: Production deployment
 
-1. Add a multi-stage `Dockerfile` using Next.js `output: 'standalone'`.
-2. Add a production `docker-compose.yml`: `app`, `postgres` (volume, not exposed publicly), `caddy` (ports 80 and 443, automatic TLS).
-3. Run `db:migrate` on deploy, before the app starts.
-4. Provision a VPS, lock SSH down to keys only, enable the firewall (allow 22, 80, 443) and turn on unattended security updates.
-5. Back up: a nightly `pg_dump` container uploads to object storage with 30-day retention. **Test a restore** before calling this done.
-6. Add uptime monitoring (a free external pinger is enough to start) and an error-reporting service.
-7. Set DNS, then update the OAuth callback URLs and `NEXT_PUBLIC_APP_URL`.
+**Decided 2026-10-20.** Production runs on Fedora at home, not a rented VPS (the original plan). Revisit a VPS before paying customers: home internet, power and the ISP's terms all become the app's uptime.
 
-Done when production is live on HTTPS, a restore from last night's backup has been tested, and the Appwrite project can be deleted.
+| Concern | Choice |
+| ------- | ------ |
+| Reaching it from the internet | Cloudflare Tunnel at `ontrack.randomlake.cc` (DNS already on Cloudflare). No router ports opened, home IP stays hidden, HTTPS at Cloudflare. |
+| Running the app | Podman container started by systemd (Quadlet). Same image works on a VPS later and is the basis of the self-host bundle. |
+| Database | The existing native PostgreSQL 18 on Fedora, database `on_track`. |
+| Backups | Nightly `pg_dump` to another machine at home. Not off-site: add an off-site copy (for example Backblaze B2) before paying customers. |
+
+Split into steps, each its own commit:
+
+- **7a: container image.** ✅ Done.
+  - `Containerfile` builds a Next.js standalone server on Node 26 (Bun only to install and build). It runs as the unprivileged `node` user and is about 320 MB.
+  - On start it runs `migrate.mjs` (`scripts/migrate.ts`, bundled at build time) and then the server, so the schema is always current. Running it twice is harmless.
+  - No settings or secrets are in the image (`.containerignore` keeps `.env*` out); everything is given at run time. `NEXT_PUBLIC_APP_URL` is gone: the browser calls the API on its own origin (`hc('/')`), so one image works at any address. The server-side address is `BETTER_AUTH_URL`.
+  - `GET /api/health` answers 200 when the app can reach the database, for the systemd health check and uptime monitoring.
+  - Verified with throwaway containers (Postgres 18, Mailpit): migrations, health, sign-up, the verification email and its link, creating and listing a workspace, static files, restart.
+- **7b: run on Fedora, home network only.** Build the image on Fedora, a Quadlet unit with the settings in a root-only env file, start on boot, health check. Reachable at `http://192.168.1.65:3000` for testing.
+- **7c: internet.** `cloudflared` tunnel to `ontrack.randomlake.cc`; production GitHub and Google OAuth apps with that callback URL (and publish the Google consent screen); `BETTER_AUTH_URL` set to the public address; tighten `pg_hba.conf` to what the app needs.
+- **7d: backups.** Nightly `pg_dump` to the backup machine with 30-day retention. **Test a restore** into a scratch database before calling this done.
+- **7e: monitoring.** A free external uptime check on `/api/health`, with alerts to email.
+
+Done when production is live on HTTPS and a restore from last night's backup has been tested. Organizations (see Later) should exist before a second non-profit is brought in.
 
 ## Phase 8: Cleanup
 

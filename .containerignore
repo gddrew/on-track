@@ -1,0 +1,10 @@
+# Kept out of the image build. Settings and secrets never go into the image.
+.env*
+!.env.example
+.git
+.next
+node_modules
+dist
+tests
+.claude
+*.tsbuildinfo
