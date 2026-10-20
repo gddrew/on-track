@@ -25,6 +25,7 @@ import {
 
 import { createWorkspaceShema } from '../schema';
 import { useCreateWorkspace } from '../api/use-create-workspace';
+import { IMAGE_ACCEPT } from '@/lib/images';
 
 interface CreateWorkspaceFormProps {
   onCancel?: () => void;
@@ -127,7 +128,7 @@ export const CreateWorkspaceForm = ({ onCancel }: CreateWorkspaceFormProps) => {
                         <input
                           className='hidden'
                           type='file'
-                          accept='.jpg, .jpeg, .png, .svg'
+                          accept={IMAGE_ACCEPT}
                           ref={inputRef}
                           onChange={handleImageChange}
                           disabled={isPending}

@@ -185,6 +185,24 @@ await requireMember(c, workspaceId, { role: MemberRole.ADMIN });               /
 
 ## Phase 4: Port the routes
 
+**Split into five steps (decided 2026-10-20).** Postgres enforces the links between tables, so a table moves only after the tables it points at. Each step resets that step's test data. Until a table moves, its Appwrite rows simply store the new Postgres ids.
+
+- **4a: workspaces and members ✅ done 2026-10-20.**
+  - `requireMember`, `getMember` and `listMembers` (`src/features/members/utils.ts`) read Postgres. The member list gets names and emails in one join instead of a lookup per member.
+  - Routes that look something up by its own id answer a non-member with **404**, the same as a missing id, so other workspaces' ids can't be probed (`orNotFound`). A member lacking the admin role still gets 403. Malformed ids are treated as missing (`isUuid`) instead of causing a database error.
+  - Creating a workspace and its first admin is one transaction. Join can't create a duplicate membership.
+  - Images: PNG, JPEG, GIF or WebP up to 1 MB, stored as data URLs (`src/lib/images.ts`), with no Appwrite bucket. SVG is no longer accepted because it can carry scripts. Editing without a new file keeps the image; there is still no way to remove one (existing behavior).
+  - Invite codes come from the secure random generator instead of `Math.random()`.
+  - Responses keep the Appwrite shape via `toApi` / `toApiList` (`src/db/api-shape.ts`).
+  - Temporary: deleting a workspace leaves its projects and tasks in Appwrite (unreachable) until 4b/4c.
+  - **Permanent tests:** `bun test` (`tests/`) calls the API in-process against `TEST_DATABASE_URL` from `.env.test.local`, a local `on_track_test` database. It refuses any database whose name doesn't end in `_test`, and email is stubbed out. 37 tests cover workspaces and members, including cross-workspace access; with the membership check disabled, 22 fail. The Hono app moved to `src/server/app.ts` so tests can import it.
+- **4b: projects.** Images, admin-only delete, deleting a project removes its tasks.
+- **4c: tasks.** One query for the list with project and assignee; kanban bulk update in one transaction; search; unassigned tasks in the UI.
+- **4d: analytics.** One query per page; fix the "last month overdue" bug.
+- **4e: remove Appwrite.** Drop `node-appwrite` and its settings and the test stand-in; back to Node 26.
+
+The original notes:
+
 Order, from simplest to hardest:
 
 1. **Workspaces.** List, get, info, create, update, delete, reset invite code, join. Creating a workspace and its admin member happens in one transaction.
@@ -258,6 +276,7 @@ Done when production is live on HTTPS, a restore from last night's backup has be
 - ~~Remove `console.log({ user })` from the sign-in page.~~ Done 2026-10-19.
 - **Organizations (tenants), to design before launch.** Today a workspace is effectively the tenant. Add an organization level, one per non-profit, owning one or more workspaces, with its own users and admins (and later billing). Requirement from the user: non-profit A must not be able to learn anything about non-profit B, and vice versa. `requireMember` is where organization scoping goes. Because the data is test data, adding the table is a cheap migration.
 - **Platform admin (the system manager), to design before launch.** One explicit role that can see across all organizations. Its access should be logged, so a non-profit can know when its data was viewed, rather than skipping the normal checks silently.
+- **Agile work hierarchy (next project, after this migration).** Replace "projects → tasks" with Initiatives → Epics → Features → Story | Task | Bug. Phase 4 keeps today's tables as they are; the hierarchy will be its own migration.
 - Return to the original page after sign-in for the other signed-in-only pages (task, project, settings, members), using the same `callbackUrl` as the join page.
 - Microsoft sign-in (dropped for now; many non-profits use donated Microsoft 365).
 - Postgres row-level security keyed on workspace (or organization).

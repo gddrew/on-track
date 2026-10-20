@@ -1,77 +1,69 @@
 import { z } from 'zod';
 import { Hono } from 'hono';
-import { ID, Query } from 'node-appwrite';
+import { eq } from 'drizzle-orm';
+import { Query } from 'node-appwrite';
 import { zValidator } from '@hono/zod-validator';
 import { endOfMonth, startOfMonth, subMonths } from 'date-fns';
 
+import { db } from '@/db';
+import { members, workspaces } from '@/db/schema';
+import { isUuid, toApi } from '@/db/api-shape';
 import { MemberRole } from '@/features/members/types';
 import { TaskStatus } from '@/features/tasks/types';
 import { getMember, requireMember } from '@/features/members/utils';
 
+import { fileToDataUrl } from '@/lib/images';
 import { generateInviteCode } from '@/lib/utils';
 import { sessionMiddleware } from '@/lib/session-middleware';
-import {
-  DATABASE_ID,
-  IMAGES_BUCKET_ID,
-  MEMBERS_ID,
-  TASKS_ID,
-  WORKSPACES_ID,
-} from '@/config';
+import { DATABASE_ID, TASKS_ID } from '@/config';
 
-import { Workspace } from '../types';
+import { getWorkspaces } from '../queries';
 import { createWorkspaceShema, updateWorkspaceShema } from '../schema';
+
+const findWorkspace = async (workspaceId: string) => {
+  if (!isUuid(workspaceId)) {
+    return undefined;
+  }
+
+  const [workspace] = await db
+    .select()
+    .from(workspaces)
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+
+  return workspace;
+};
 
 const app = new Hono()
   .get('/', sessionMiddleware, async (c) => {
     const user = c.get('user');
-    const databases = c.get('databases');
 
-    const members = await databases.listDocuments(DATABASE_ID, MEMBERS_ID, [
-      Query.equal('userId', user.$id),
-    ]);
-
-    if (members.total === 0) {
-      return c.json({ data: { documents: [], total: 0 } });
-    }
-
-    const workspaceIds = members.documents.map((member) => member.workspaceId);
-
-    const workspaces = await databases.listDocuments(
-      DATABASE_ID,
-      WORKSPACES_ID,
-      [Query.orderDesc('$createdAt'), Query.contains('$id', workspaceIds)],
-    );
-
-    return c.json({ data: workspaces });
+    return c.json({ data: await getWorkspaces(user.id) });
   })
   .get('/:workspaceId', sessionMiddleware, async (c) => {
-    const databases = c.get('databases');
     const { workspaceId } = c.req.param();
 
     await requireMember(c, workspaceId);
 
-    const workspace = await databases.getDocument<Workspace>(
-      DATABASE_ID,
-      WORKSPACES_ID,
-      workspaceId,
-    );
+    const workspace = await findWorkspace(workspaceId);
 
-    return c.json({ data: workspace });
+    if (!workspace) {
+      return c.json({ error: 'Not found' }, 404);
+    }
+
+    return c.json({ data: toApi(workspace) });
   })
   .get(
     '/:workspaceId/info',
     sessionMiddleware,
     zValidator('query', z.object({ inviteCode: z.string() })),
     async (c) => {
-      const databases = c.get('databases');
       const { workspaceId } = c.req.param();
       const { inviteCode } = c.req.valid('query');
 
       // For the join page, so only with a valid invite link. A wrong code gets the
       // same answer as a missing workspace, so neither reveals that it exists.
-      const workspace = await databases
-        .getDocument<Workspace>(DATABASE_ID, WORKSPACES_ID, workspaceId)
-        .catch(() => null);
+      const workspace = await findWorkspace(workspaceId);
 
       if (!workspace || workspace.inviteCode !== inviteCode) {
         return c.json({ error: 'Not found' }, 404);
@@ -79,7 +71,7 @@ const app = new Hono()
 
       return c.json({
         data: {
-          $id: workspace.$id,
+          $id: workspace.id,
           name: workspace.name,
           imageUrl: workspace.imageUrl,
         },
@@ -253,46 +245,33 @@ const app = new Hono()
     zValidator('form', createWorkspaceShema),
     sessionMiddleware,
     async (c) => {
-      const databases = c.get('databases');
-      const storage = c.get('storage');
       const user = c.get('user');
       const { name, image } = c.req.valid('form');
 
-      let uploadedImageUrl: string | undefined;
-      if (image instanceof File) {
-        const file = await storage.createFile(
-          IMAGES_BUCKET_ID,
-          ID.unique(),
-          image,
-        );
+      const imageUrl = image instanceof File ? await fileToDataUrl(image) : null;
 
-        const arrayBuffer = await storage.getFileView(
-          IMAGES_BUCKET_ID,
-          file.$id,
-        );
+      // The workspace and its first admin are created together or not at all
+      const workspace = await db.transaction(async (tx) => {
+        const [workspace] = await tx
+          .insert(workspaces)
+          .values({
+            name,
+            imageUrl,
+            inviteCode: generateInviteCode(6),
+            createdBy: user.id,
+          })
+          .returning();
 
-        uploadedImageUrl = `data:image/png;base64,${Buffer.from(arrayBuffer).toString('base64')}`;
-      }
+        await tx.insert(members).values({
+          workspaceId: workspace.id,
+          userId: user.id,
+          role: MemberRole.ADMIN,
+        });
 
-      const workspace = await databases.createDocument(
-        DATABASE_ID,
-        WORKSPACES_ID,
-        ID.unique(),
-        {
-          name,
-          userId: user.$id,
-          imageUrl: uploadedImageUrl,
-          inviteCode: generateInviteCode(6),
-        },
-      );
-
-      await databases.createDocument(DATABASE_ID, MEMBERS_ID, ID.unique(), {
-        userId: user.$id,
-        workspaceId: workspace.$id,
-        role: MemberRole.ADMIN,
+        return workspace;
       });
 
-      return c.json({ data: workspace });
+      return c.json({ data: toApi(workspace) });
     },
   )
   .patch(
@@ -300,73 +279,49 @@ const app = new Hono()
     sessionMiddleware,
     zValidator('form', updateWorkspaceShema),
     async (c) => {
-      const databases = c.get('databases');
-      const storage = c.get('storage');
-
       const { workspaceId } = c.req.param();
       const { name, image } = c.req.valid('form');
 
       await requireMember(c, workspaceId, { role: MemberRole.ADMIN });
 
-      let uploadedImageUrl: string | undefined;
-      if (image instanceof File) {
-        const file = await storage.createFile(
-          IMAGES_BUCKET_ID,
-          ID.unique(),
-          image,
-        );
-
-        const arrayBuffer = await storage.getFileView(
-          IMAGES_BUCKET_ID,
-          file.$id,
-        );
-
-        uploadedImageUrl = `data:image/png;base64,${Buffer.from(arrayBuffer).toString('base64')}`;
-      } else {
-        uploadedImageUrl = image;
-      }
-
-      const workspace = await databases.updateDocument(
-        DATABASE_ID,
-        WORKSPACES_ID,
-        workspaceId,
-        {
+      // Without a new file the current image is kept
+      const [workspace] = await db
+        .update(workspaces)
+        .set({
           name,
-          imageUrl: uploadedImageUrl,
-        },
-      );
+          ...(image instanceof File && {
+            imageUrl: await fileToDataUrl(image),
+          }),
+        })
+        .where(eq(workspaces.id, workspaceId))
+        .returning();
 
-      return c.json({ data: workspace });
+      return c.json({ data: toApi(workspace) });
     },
   )
   .delete('/:workspaceId', sessionMiddleware, async (c) => {
-    const databases = c.get('databases');
-
     const { workspaceId } = c.req.param();
 
     await requireMember(c, workspaceId, { role: MemberRole.ADMIN });
 
-    // TODO: Delete members, projects and tasks
-
-    await databases.deleteDocument(DATABASE_ID, WORKSPACES_ID, workspaceId);
+    // Removes its members too. Until 4b/4c move them, its projects and tasks are
+    // left behind in Appwrite, unreachable.
+    await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
 
     return c.json({ data: { $id: workspaceId } });
   })
   .post('/:workspaceId/reset-invite-code', sessionMiddleware, async (c) => {
-    const databases = c.get('databases');
-
     const { workspaceId } = c.req.param();
 
     await requireMember(c, workspaceId, { role: MemberRole.ADMIN });
 
-    const workspace = await databases.updateDocument(
-      DATABASE_ID,
-      WORKSPACES_ID,
-      workspaceId,
-      { inviteCode: generateInviteCode(6) },
-    );
+    const [workspace] = await db
+      .update(workspaces)
+      .set({ inviteCode: generateInviteCode(6) })
+      .where(eq(workspaces.id, workspaceId))
+      .returning();
 
-    return c.json({ data: workspace });
+    return c.json({ data: toApi(workspace) });
   })
   .post(
     '/:workspaceId/join',
@@ -375,37 +330,25 @@ const app = new Hono()
     async (c) => {
       const { workspaceId } = c.req.param();
       const { code } = c.req.valid('json');
-
-      const databases = c.get('databases');
       const user = c.get('user');
 
-      const member = await getMember({
-        databases,
-        workspaceId,
-        userId: user.$id,
-      });
+      const workspace = await findWorkspace(workspaceId);
 
-      if (member) {
-        return c.json({ error: 'Already a member' }, 400);
-      }
-
-      const workspace = await databases.getDocument<Workspace>(
-        DATABASE_ID,
-        WORKSPACES_ID,
-        workspaceId,
-      );
-
-      if (workspace.inviteCode !== code) {
+      if (!workspace || workspace.inviteCode !== code) {
         return c.json({ error: 'Invalid invite code' }, 400);
       }
 
-      await databases.createDocument(DATABASE_ID, MEMBERS_ID, ID.unique(), {
-        workspaceId,
-        userId: user.$id,
-        role: MemberRole.MEMBER,
-      });
+      if (await getMember(workspaceId, user.id)) {
+        return c.json({ error: 'Already a member' }, 400);
+      }
 
-      return c.json({ data: workspace });
+      // A double-click can't create a second membership (unique workspace + user)
+      await db
+        .insert(members)
+        .values({ workspaceId, userId: user.id, role: MemberRole.MEMBER })
+        .onConflictDoNothing();
+
+      return c.json({ data: toApi(workspace) });
     },
   );
 

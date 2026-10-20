@@ -1,84 +1,89 @@
 import type { Context } from 'hono';
-import { inArray } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { Query, type Databases } from 'node-appwrite';
 
 import { db } from '@/db';
-import { user } from '@/db/schema';
-import { DATABASE_ID, MEMBERS_ID } from '@/config';
+import { members, user } from '@/db/schema';
+import { isUuid, toApi } from '@/db/api-shape';
 import type { AdditionalContext } from '@/lib/session-middleware';
 
-import { Member, MemberRole } from './types';
+import { MemberRole, PopulatedMember } from './types';
 
-interface GetMemberProps {
-  databases: Databases;
-  workspaceId: string;
-  userId: string;
-}
+export const getMember = async (workspaceId: string, userId: string) => {
+  if (!isUuid(workspaceId)) {
+    return undefined;
+  }
 
-export const getMember = async ({
-  databases,
-  workspaceId,
-  userId,
-}: GetMemberProps) => {
-  const members = await databases.listDocuments<Member>(
-    DATABASE_ID,
-    MEMBERS_ID,
-    [Query.equal('workspaceId', workspaceId), Query.equal('userId', userId)],
-  );
+  const [member] = await db
+    .select()
+    .from(members)
+    .where(
+      and(eq(members.workspaceId, workspaceId), eq(members.userId, userId)),
+    )
+    .limit(1);
 
-  return members.documents[0];
+  return member ? toApi(member) : undefined;
 };
 
 interface RequireMemberOptions {
   role?: MemberRole;
+  // For routes that look a resource up by its own id: answer a non-member with the
+  // same 404 as a missing resource, so other workspaces' ids can't be probed
+  orNotFound?: boolean;
 }
 
 // The one access check for workspace data: returns the signed-in user's membership
-// of this workspace, or stops the request with 403 if they aren't a member (or lack the role)
+// of this workspace, or stops the request with 403 (or 404, see orNotFound)
 export const requireMember = async (
   c: Context<AdditionalContext>,
   workspaceId: string,
-  { role }: RequireMemberOptions = {},
+  { role, orNotFound }: RequireMemberOptions = {},
 ) => {
-  const member = await getMember({
-    databases: c.get('databases'),
-    workspaceId,
-    userId: c.get('user').$id,
-  });
+  const member = await getMember(workspaceId, c.get('user').id);
 
-  if (!member || (role && member.role !== role)) {
+  if (!member) {
+    throw orNotFound
+      ? new HTTPException(404, { message: 'Not found' })
+      : new HTTPException(403, { message: 'Forbidden' });
+  }
+
+  if (role && member.role !== role) {
     throw new HTTPException(403, { message: 'Forbidden' });
   }
 
   return member;
 };
 
-// Adds each member's name and email from the user table, in one query
-export const populateMembers = async <T extends { userId: string }>(
-  members: T[],
-) => {
-  if (members.length === 0) {
+// A workspace's members with their name and email, optionally only the given ids
+export const listMembers = async (
+  workspaceId: string,
+  memberIds?: (string | null | undefined)[],
+): Promise<PopulatedMember[]> => {
+  const ids = memberIds?.filter(isUuid);
+
+  if (!isUuid(workspaceId) || (ids && ids.length === 0)) {
     return [];
   }
 
-  const users = await db
-    .select({ id: user.id, name: user.name, email: user.email })
-    .from(user)
+  const rows = await db
+    .select({
+      ...getTableColumns(members),
+      name: user.name,
+      email: user.email,
+    })
+    .from(members)
+    .innerJoin(user, eq(user.id, members.userId))
     .where(
-      inArray(
-        user.id,
-        members.map((member) => member.userId),
+      and(
+        eq(members.workspaceId, workspaceId),
+        ids ? inArray(members.id, ids) : undefined,
       ),
-    );
+    )
+    .orderBy(asc(members.createdAt));
 
-  return members.map((member) => {
-    const memberUser = users.find((u) => u.id === member.userId);
-
-    return {
-      ...member,
-      name: memberUser?.name || memberUser?.email || 'Unknown user',
-      email: memberUser?.email ?? '',
-    };
-  });
+  return rows.map((row) => ({
+    ...toApi(row),
+    role: row.role as MemberRole,
+    name: row.name || row.email,
+  }));
 };

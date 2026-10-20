@@ -1,25 +1,17 @@
-import { Query } from 'node-appwrite';
+import { desc, eq, getTableColumns } from 'drizzle-orm';
 
-import { createAdminClient } from '@/lib/appwrite';
-import { DATABASE_ID, MEMBERS_ID, WORKSPACES_ID } from '@/config';
+import { db } from '@/db';
+import { members, workspaces } from '@/db/schema';
+import { toApiList } from '@/db/api-shape';
 
+// The workspaces the user is a member of, newest first
 export const getWorkspaces = async (userId: string) => {
-  const { databases } = await createAdminClient();
+  const rows = await db
+    .select(getTableColumns(workspaces))
+    .from(workspaces)
+    .innerJoin(members, eq(members.workspaceId, workspaces.id))
+    .where(eq(members.userId, userId))
+    .orderBy(desc(workspaces.createdAt));
 
-  const members = await databases.listDocuments(DATABASE_ID, MEMBERS_ID, [
-    Query.equal('userId', userId),
-  ]);
-
-  if (members.total === 0) {
-    return { documents: [], total: 0 };
-  }
-
-  const workspaceIds = members.documents.map((member) => member.workspaceId);
-
-  const workspaces = await databases.listDocuments(DATABASE_ID, WORKSPACES_ID, [
-    Query.orderDesc('$createdAt'),
-    Query.contains('$id', workspaceIds),
-  ]);
-
-  return workspaces;
+  return toApiList(rows);
 };

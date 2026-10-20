@@ -1,21 +1,13 @@
 import { z } from 'zod';
 
+import { imageField } from '@/lib/images';
+
 export const createWorkspaceShema = z.object({
   name: z.string().trim().min(1, 'Required'),
-  image: z
-    .union([
-      z.instanceof(File),
-      z.string().transform((value) => (value === '' ? undefined : value)),
-    ])
-    .optional(),
+  image: imageField,
 });
 
 export const updateWorkspaceShema = z.object({
   name: z.string().trim().min(1, 'Must be 1 or more characters'),
-  image: z
-    .union([
-      z.instanceof(File),
-      z.string().transform((value) => (value === '' ? undefined : value)),
-    ])
-    .optional(),
+  image: imageField,
 });
