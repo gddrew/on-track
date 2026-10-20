@@ -129,7 +129,7 @@ Done when register, login, logout, Google and GitHub sign-in all work locally, a
 
 - **2a: email/password ✅ done 2026-10-19.** Better Auth is mounted at `/api/auth/*`, the old Hono auth routes and Appwrite OAuth files are gone, and the four auth hooks call Better Auth. Auth tables were checked against `bunx auth generate`; that added `drizzle/0001_verification_identifier_index.sql`.
   - **Temporary bridge until Phase 4:** `sessionMiddleware` gives routes Appwrite clients that use the **admin API key** (the key now has the `documents.*` and `files.*` scopes). Member names and emails come from the Postgres `user` table (`populateMembers`). Routes still check membership with `getMember`.
-  - **Run `next dev` on Node 25 until Phase 4.** node-appwrite 14 fails on Node 26 (`UND_ERR_INVALID_ARG: invalid onError method`).
+  - **Run `next dev` on Node 25 until Phase 4.** node-appwrite 14 fails on Node 26 (`UND_ERR_INVALID_ARG: invalid onError method`). (Resolved in 4e.)
 - **2b: Google and GitHub sign-in ✅ done 2026-10-19.** Microsoft was dropped. Dev OAuth apps are `on-track (dev)` with GitHub and in the Google Cloud project `on-track` (no billing account; the consent screen is in Testing mode, so only listed test users can sign in). Both cards use `SocialSignIn`. Production needs separate OAuth apps or callback URLs, and the Google app published (Phase 7).
 - **2c: password reset and email verification ✅ done 2026-10-19.** Email goes out over SMTP (`src/lib/email.ts`, nodemailer) through Resend, from `noreply@mail.randomlake.cc`, the domain the user's other app already verified; any SMTP provider works by changing `.env.local`. Email/password sign-ups must verify their email before signing in; a fresh link is sent on any sign-in attempt before then. New pages are `/forgot-password` and `/reset-password`. A reset signs out every other session. Reset and verification links expire after 1 hour. Tested end to end with a local Mailpit catcher, not with real email.
 
@@ -183,7 +183,7 @@ await requireMember(c, workspaceId, { role: MemberRole.ADMIN });               /
 | `POST /tasks/bulk-update` | Member; every task must exist and be in that one workspace |
 | `/api/auth/*` | Better Auth |
 
-## Phase 4: Port the routes
+## Phase 4: Port the routes ✅ done 2026-10-20
 
 **Split into five steps (decided 2026-10-20).** Postgres enforces the links between tables, so a table moves only after the tables it points at. Each step resets that step's test data. Until a table moves, its Appwrite rows simply store the new Postgres ids.
 
@@ -216,7 +216,11 @@ await requireMember(c, workspaceId, { role: MemberRole.ADMIN });               /
 - **4d: analytics.** ✅ Removed instead of ported.
   - The cards mixed scopes ("Total" counted everyone's tasks, "Assigned" only the viewer's) and didn't follow the filters, and the user decided they weren't worth keeping. The workspace and project analytics routes, hooks and cards are gone.
   - If dashboards come back (likely with the Agile hierarchy), they should follow the task filters: one person when one is selected, everyone otherwise. The old version had a bug worth not repeating: last month's overdue count counted finished tasks. Git history has a one-query version (`count(*) filter (where …)`).
-- **4e: remove Appwrite.** Drop `node-appwrite` and its settings and the test stand-in; back to Node 26.
+- **4e: remove Appwrite.** ✅ Done.
+  - `node-appwrite`, `src/lib/appwrite.ts`, `src/config.ts`, the Appwrite settings in `.env.example` and the test stand-in are gone. No file mentions Appwrite except the comment on the API shape (`$id`, `{ documents, total }`), which the frontend still uses.
+  - The session middleware now only sets `user` (the `user.$id` bridge is gone; routes use `user.id`).
+  - Back to Node 26: tests and the production build pass on Node 26.12, and the production server answers sign-in pages and the API (401 when signed out).
+  - **You can delete the Appwrite variables from `.env.local`** and, when you're sure, the Appwrite project itself.
 
 The original notes:
 
@@ -271,8 +275,8 @@ Done when production is live on HTTPS, a restore from last night's backup has be
 
 ## Phase 8: Cleanup
 
-- Remove `node-appwrite` and every `NEXT_PUBLIC_APPWRITE_*` / `NEXT_APPWRITE_KEY` variable.
-- Retry the Node 26 upgrade.
+- ~~Remove `node-appwrite` and every `NEXT_PUBLIC_APPWRITE_*` / `NEXT_APPWRITE_KEY` variable.~~ Done in 4e.
+- ~~Retry the Node 26 upgrade.~~ Done in 4e.
 - Optionally rename `$id` / `$createdAt` across the frontend to `id` / `createdAt`.
 - Replace the default `README.md` with setup instructions (Docker, env vars, migrations).
 
