@@ -1,13 +1,38 @@
 import { z } from 'zod';
 import { Hono } from 'hono';
-import { Query } from 'node-appwrite';
+import { count, eq } from 'drizzle-orm';
 import { zValidator } from '@hono/zod-validator';
 
-import { DATABASE_ID, MEMBERS_ID } from '@/config';
+import { db } from '@/db';
+import { members } from '@/db/schema';
+import { isUuid, toApi } from '@/db/api-shape';
 import { sessionMiddleware } from '@/lib/session-middleware';
 
-import { populateMembers, requireMember } from '../utils';
-import { Member, MemberRole } from '../types';
+import { listMembers, requireMember } from '../utils';
+import { MemberRole } from '../types';
+
+const findMember = async (memberId: string) => {
+  if (!isUuid(memberId)) {
+    return undefined;
+  }
+
+  const [member] = await db
+    .select()
+    .from(members)
+    .where(eq(members.id, memberId))
+    .limit(1);
+
+  return member;
+};
+
+const countMembers = async (workspaceId: string) => {
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(members)
+    .where(eq(members.workspaceId, workspaceId));
+
+  return total;
+};
 
 const app = new Hono()
   .get(
@@ -15,57 +40,40 @@ const app = new Hono()
     sessionMiddleware,
     zValidator('query', z.object({ workspaceId: z.string() })),
     async (c) => {
-      const databases = c.get('databases');
       const { workspaceId } = c.req.valid('query');
 
       await requireMember(c, workspaceId);
 
-      const members = await databases.listDocuments<Member>(
-        DATABASE_ID,
-        MEMBERS_ID,
-        [Query.equal('workspaceId', workspaceId)],
-      );
+      const documents = await listMembers(workspaceId);
 
-      const populatedMembers = await populateMembers(members.documents);
-
-      return c.json({
-        data: {
-          ...members,
-          documents: populatedMembers,
-        },
-      });
+      return c.json({ data: { documents, total: documents.length } });
     },
   )
   .delete('/:memberId', sessionMiddleware, async (c) => {
     const { memberId } = c.req.param();
-    const databases = c.get('databases');
 
-    const memberToDelete = await databases.getDocument(
-      DATABASE_ID,
-      MEMBERS_ID,
-      memberId,
-    );
+    const memberToDelete = await findMember(memberId);
 
-    const member = await requireMember(c, memberToDelete.workspaceId);
+    if (!memberToDelete) {
+      return c.json({ error: 'Not found' }, 404);
+    }
+
+    const member = await requireMember(c, memberToDelete.workspaceId, {
+      orNotFound: true,
+    });
 
     // Members can remove themselves; only admins can remove others
-    if (member.$id !== memberToDelete.$id && member.role !== MemberRole.ADMIN) {
+    if (member.$id !== memberToDelete.id && member.role !== MemberRole.ADMIN) {
       return c.json({ error: 'Forbidden' }, 403);
     }
 
-    const allMembersInWorkspace = await databases.listDocuments(
-      DATABASE_ID,
-      MEMBERS_ID,
-      [Query.equal('workspaceId', memberToDelete.workspaceId)],
-    );
-
-    if (allMembersInWorkspace.total === 1) {
+    if ((await countMembers(memberToDelete.workspaceId)) === 1) {
       return c.json({ error: 'Cannot delete the only member' }, 400);
     }
 
-    await databases.deleteDocument(DATABASE_ID, MEMBERS_ID, memberId);
+    await db.delete(members).where(eq(members.id, memberId));
 
-    return c.json({ data: { $id: memberToDelete.$id } });
+    return c.json({ data: { $id: memberToDelete.id } });
   })
   .patch(
     '/:memberId',
@@ -74,33 +82,29 @@ const app = new Hono()
     async (c) => {
       const { memberId } = c.req.param();
       const { role } = c.req.valid('json');
-      const databases = c.get('databases');
 
-      const memberToUpdate = await databases.getDocument(
-        DATABASE_ID,
-        MEMBERS_ID,
-        memberId,
-      );
+      const memberToUpdate = await findMember(memberId);
+
+      if (!memberToUpdate) {
+        return c.json({ error: 'Not found' }, 404);
+      }
 
       await requireMember(c, memberToUpdate.workspaceId, {
         role: MemberRole.ADMIN,
+        orNotFound: true,
       });
 
-      const allMembersInWorkspace = await databases.listDocuments(
-        DATABASE_ID,
-        MEMBERS_ID,
-        [Query.equal('workspaceId', memberToUpdate.workspaceId)],
-      );
-
-      if (allMembersInWorkspace.total === 1) {
+      if ((await countMembers(memberToUpdate.workspaceId)) === 1) {
         return c.json({ error: 'Cannot downgrade the only member' }, 400);
       }
 
-      await databases.updateDocument(DATABASE_ID, MEMBERS_ID, memberId, {
-        role,
-      });
+      const [updated] = await db
+        .update(members)
+        .set({ role })
+        .where(eq(members.id, memberId))
+        .returning();
 
-      return c.json({ data: { $id: memberToUpdate.$id } });
+      return c.json({ data: { $id: toApi(updated).$id } });
     },
   );
 

@@ -30,6 +30,7 @@ import { updateWorkspaceShema } from '../schema';
 import { useUpdateWorkspace } from '../api/use-update-workspace';
 import { useDeleteWorkspace } from '../api/use-delete-workspace';
 import { useResetInviteCode } from '../api/use-reset-invite-code';
+import { IMAGE_ACCEPT } from '@/lib/images';
 
 interface EditWorkspaceFormProps {
   onCancel?: () => void;
@@ -201,7 +202,7 @@ export const EditWorkspaceForm = ({
                           <input
                             className='hidden'
                             type='file'
-                            accept='.jpg, .jpeg, .png, .svg'
+                            accept={IMAGE_ACCEPT}
                             ref={inputRef}
                             onChange={handleImageChange}
                             disabled={isPending}

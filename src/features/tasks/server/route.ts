@@ -4,12 +4,11 @@ import { HTTPException } from 'hono/http-exception';
 import { ID, Query, type Databases } from 'node-appwrite';
 import { zValidator } from '@hono/zod-validator';
 
-import { populateMembers, requireMember } from '@/features/members/utils';
+import { listMembers, requireMember } from '@/features/members/utils';
 import { Project } from '@/features/projects/types';
-import { Member } from '@/features/members/types';
 
 import { sessionMiddleware } from '@/lib/session-middleware';
-import { DATABASE_ID, MEMBERS_ID, PROJECTS_ID, TASKS_ID } from '@/config';
+import { DATABASE_ID, PROJECTS_ID, TASKS_ID } from '@/config';
 
 import { createTaskSchema } from '../schemas';
 import { Task, TaskStatus } from '../types';
@@ -40,7 +39,7 @@ const requireInWorkspace = async (
       ? isInWorkspace(databases, PROJECTS_ID, projectId, workspaceId)
       : true,
     assigneeId
-      ? isInWorkspace(databases, MEMBERS_ID, assigneeId, workspaceId)
+      ? listMembers(workspaceId, [assigneeId]).then((found) => found.length > 0)
       : true,
   ]);
 
@@ -109,19 +108,16 @@ const app = new Hono()
       const assigneeIds = tasks.documents.map((tasks) => tasks.assigneeId);
 
       // Only this workspace's projects and members, even if a task points elsewhere
-      const listInWorkspace = async <T extends Project | Member>(
-        collectionId: string,
-        ids: string[],
-      ) => {
-        const uniqueIds = [...new Set(ids)];
+      const listProjects = async () => {
+        const uniqueIds = [...new Set(projectIds)];
 
         if (uniqueIds.length === 0) {
           return [];
         }
 
-        const { documents } = await databases.listDocuments<T>(
+        const { documents } = await databases.listDocuments<Project>(
           DATABASE_ID,
-          collectionId,
+          PROJECTS_ID,
           [
             Query.equal('$id', uniqueIds),
             Query.equal('workspaceId', workspaceId),
@@ -132,12 +128,10 @@ const app = new Hono()
         return documents;
       };
 
-      const [projects, members] = await Promise.all([
-        listInWorkspace<Project>(PROJECTS_ID, projectIds),
-        listInWorkspace<Member>(MEMBERS_ID, assigneeIds),
+      const [projects, assignees] = await Promise.all([
+        listProjects(),
+        listMembers(workspaceId, assigneeIds),
       ]);
-
-      const assignees = await populateMembers(members);
 
       const populatedTasks = tasks.documents.map((task) => {
         const project = projects.find(
@@ -280,21 +274,16 @@ const app = new Hono()
     await requireMember(c, task.workspaceId);
 
     // Only this workspace's project and member, even if the task points elsewhere
-    const [projects, members] = await Promise.all([
+    const [projects, [assignee]] = await Promise.all([
       databases.listDocuments<Project>(DATABASE_ID, PROJECTS_ID, [
         Query.equal('$id', task.projectId),
         Query.equal('workspaceId', task.workspaceId),
         Query.limit(1),
       ]),
-      databases.listDocuments<Member>(DATABASE_ID, MEMBERS_ID, [
-        Query.equal('$id', task.assigneeId),
-        Query.equal('workspaceId', task.workspaceId),
-        Query.limit(1),
-      ]),
+      listMembers(task.workspaceId, [task.assigneeId]),
     ]);
 
     const project = projects.documents[0];
-    const [assignee] = await populateMembers(members.documents);
 
     return c.json({
       data: {

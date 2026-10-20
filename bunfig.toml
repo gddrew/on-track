@@ -1,0 +1,4 @@
+[test]
+# Points the app at the test database and blocks real email (see tests/setup.ts)
+preload = ["./tests/setup.ts"]
+root = "./tests"
