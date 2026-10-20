@@ -257,9 +257,14 @@ Existing sessions won't carry over; everyone signs in again once.
 
 ## Phase 6: Uploaded images (can wait until after launch)
 
-Workspace and project images are uploaded to an Appwrite bucket, read back, and stored as base64 data URLs in `imageUrl`, so the bucket copy is never used. For the migration, drop the bucket upload and store the data URL directly, with a size limit (for example 1 MB) in the Zod schema.
+Done during Phase 4: the Appwrite bucket is gone. Workspace and project images are stored as data URLs in `imageUrl`, limited to PNG, JPEG, GIF or WebP up to 1 MB, no SVG.
 
-Later, move images to S3-compatible storage or disk served by Caddy, and store only a URL. That keeps rows small and list responses fast.
+**Decided 2026-10-20: images only for users and workspaces, as in Jira.** Projects, and later initiatives, epics, features, stories, tasks and bugs, get a built-in icon for their type instead of an upload.
+
+- **Workspaces:** keep the uploaded image.
+- **Users:** add an avatar. Better Auth's `user.image` column already exists, and GitHub and Google sign-in should fill it with the account's picture; today `MemberAvatar` shows only an initial. Email/password users need an upload (or stay with the initial).
+- **Projects:** drop the image upload and the `projects.image_url` column, and show a fixed icon. This can happen now, or as part of the Agile hierarchy, which replaces projects anyway.
+- **Storage:** with only users and workspaces, data URLs stay small and few. Moving them to disk or S3-compatible storage served by Caddy (storing only a URL) is still the better long-term choice, but not urgent.
 
 ## Phase 7: Production deployment
 
