@@ -25,10 +25,17 @@ import {
 } from '@/components/ui/form';
 import { registerSchema } from '../schema';
 import { useRegister } from '../api/use-register';
+import { withCallbackUrl } from '../utils';
 import { SocialSignIn } from './social-sign-in';
 
-export const SignUpCard = () => {
-  const { mutate, isPending, isSuccess, variables } = useRegister();
+interface SignUpCardProps {
+  callbackUrl: string;
+}
+
+export const SignUpCard = ({ callbackUrl }: SignUpCardProps) => {
+  const { mutate, isPending, isSuccess, variables } = useRegister({
+    callbackUrl,
+  });
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
@@ -158,7 +165,7 @@ export const SignUpCard = () => {
         <DottedSeparator />
       </div>
       <CardContent className='p-7 flex flex-col gap-y-4'>
-        <SocialSignIn disabled={isPending} />
+        <SocialSignIn callbackUrl={callbackUrl} disabled={isPending} />
       </CardContent>
       <div className='px-7'>
         <DottedSeparator />
@@ -166,7 +173,7 @@ export const SignUpCard = () => {
       <CardContent className='p-7 flex items-center justify-center'>
         <p>
           Already have an account?
-          <Link href='/sign-in'>
+          <Link href={withCallbackUrl('/sign-in', callbackUrl)}>
             <span className='text-blue-700'>&nbsp;Sign In</span>
           </Link>
         </p>

@@ -6,7 +6,7 @@ import { zValidator } from '@hono/zod-validator';
 import { DATABASE_ID, MEMBERS_ID } from '@/config';
 import { sessionMiddleware } from '@/lib/session-middleware';
 
-import { getMember, populateMembers } from '../utils';
+import { populateMembers, requireMember } from '../utils';
 import { Member, MemberRole } from '../types';
 
 const app = new Hono()
@@ -16,18 +16,9 @@ const app = new Hono()
     zValidator('query', z.object({ workspaceId: z.string() })),
     async (c) => {
       const databases = c.get('databases');
-      const user = c.get('user');
       const { workspaceId } = c.req.valid('query');
 
-      const member = await getMember({
-        databases,
-        workspaceId,
-        userId: user.$id,
-      });
-
-      if (!member) {
-        return c.json({ error: 'Unauthorized' }, 401);
-      }
+      await requireMember(c, workspaceId);
 
       const members = await databases.listDocuments<Member>(
         DATABASE_ID,
@@ -47,7 +38,6 @@ const app = new Hono()
   )
   .delete('/:memberId', sessionMiddleware, async (c) => {
     const { memberId } = c.req.param();
-    const user = c.get('user');
     const databases = c.get('databases');
 
     const memberToDelete = await databases.getDocument(
@@ -56,25 +46,18 @@ const app = new Hono()
       memberId,
     );
 
+    const member = await requireMember(c, memberToDelete.workspaceId);
+
+    // Members can remove themselves; only admins can remove others
+    if (member.$id !== memberToDelete.$id && member.role !== MemberRole.ADMIN) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
     const allMembersInWorkspace = await databases.listDocuments(
       DATABASE_ID,
       MEMBERS_ID,
       [Query.equal('workspaceId', memberToDelete.workspaceId)],
     );
-
-    const member = await getMember({
-      databases,
-      workspaceId: memberToDelete.workspaceId,
-      userId: user.$id,
-    });
-
-    if (!member) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    if (member.$id !== memberToDelete.$id && member.role !== MemberRole.ADMIN) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
 
     if (allMembersInWorkspace.total === 1) {
       return c.json({ error: 'Cannot delete the only member' }, 400);
@@ -91,7 +74,6 @@ const app = new Hono()
     async (c) => {
       const { memberId } = c.req.param();
       const { role } = c.req.valid('json');
-      const user = c.get('user');
       const databases = c.get('databases');
 
       const memberToUpdate = await databases.getDocument(
@@ -100,25 +82,15 @@ const app = new Hono()
         memberId,
       );
 
+      await requireMember(c, memberToUpdate.workspaceId, {
+        role: MemberRole.ADMIN,
+      });
+
       const allMembersInWorkspace = await databases.listDocuments(
         DATABASE_ID,
         MEMBERS_ID,
         [Query.equal('workspaceId', memberToUpdate.workspaceId)],
       );
-
-      const member = await getMember({
-        databases,
-        workspaceId: memberToUpdate.workspaceId,
-        userId: user.$id,
-      });
-
-      if (!member) {
-        return c.json({ error: 'Unauthorized' }, 401);
-      }
-
-      if (member.role !== MemberRole.ADMIN) {
-        return c.json({ error: 'Unauthorized' }, 401);
-      }
 
       if (allMembersInWorkspace.total === 1) {
         return c.json({ error: 'Cannot downgrade the only member' }, 400);

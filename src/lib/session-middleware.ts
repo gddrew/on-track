@@ -11,7 +11,7 @@ import { createAdminClient } from '@/lib/appwrite';
 
 type SessionUser = typeof auth.$Infer.Session.user;
 
-type AdditionalContext = {
+export type AdditionalContext = {
   Variables: {
     databases: DatabaseType;
     storage: StorageType;

@@ -1,9 +1,14 @@
+import type { Context } from 'hono';
 import { inArray } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 import { Query, type Databases } from 'node-appwrite';
 
 import { db } from '@/db';
 import { user } from '@/db/schema';
 import { DATABASE_ID, MEMBERS_ID } from '@/config';
+import type { AdditionalContext } from '@/lib/session-middleware';
+
+import { Member, MemberRole } from './types';
 
 interface GetMemberProps {
   databases: Databases;
@@ -16,12 +21,37 @@ export const getMember = async ({
   workspaceId,
   userId,
 }: GetMemberProps) => {
-  const members = await databases.listDocuments(DATABASE_ID, MEMBERS_ID, [
-    Query.equal('workspaceId', workspaceId),
-    Query.equal('userId', userId),
-  ]);
+  const members = await databases.listDocuments<Member>(
+    DATABASE_ID,
+    MEMBERS_ID,
+    [Query.equal('workspaceId', workspaceId), Query.equal('userId', userId)],
+  );
 
   return members.documents[0];
+};
+
+interface RequireMemberOptions {
+  role?: MemberRole;
+}
+
+// The one access check for workspace data: returns the signed-in user's membership
+// of this workspace, or stops the request with 403 if they aren't a member (or lack the role)
+export const requireMember = async (
+  c: Context<AdditionalContext>,
+  workspaceId: string,
+  { role }: RequireMemberOptions = {},
+) => {
+  const member = await getMember({
+    databases: c.get('databases'),
+    workspaceId,
+    userId: c.get('user').$id,
+  });
+
+  if (!member || (role && member.role !== role)) {
+    throw new HTTPException(403, { message: 'Forbidden' });
+  }
+
+  return member;
 };
 
 // Adds each member's name and email from the user table, in one query

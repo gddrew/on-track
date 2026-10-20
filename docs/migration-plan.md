@@ -133,18 +133,55 @@ Done when register, login, logout, Google and GitHub sign-in all work locally, a
 - **2b: Google and GitHub sign-in ✅ done 2026-10-19.** Microsoft was dropped. Dev OAuth apps are `on-track (dev)` with GitHub and in the Google Cloud project `on-track` (no billing account; the consent screen is in Testing mode, so only listed test users can sign in). Both cards use `SocialSignIn`. Production needs separate OAuth apps or callback URLs, and the Google app published (Phase 7).
 - **2c: password reset and email verification ✅ done 2026-10-19.** Email goes out over SMTP (`src/lib/email.ts`, nodemailer) through Resend, from `noreply@mail.randomlake.cc`, the domain the user's other app already verified; any SMTP provider works by changing `.env.local`. Email/password sign-ups must verify their email before signing in; a fresh link is sent on any sign-in attempt before then. New pages are `/forgot-password` and `/reset-password`. A reset signs out every other session. Reset and verification links expire after 1 hour. Tested end to end with a local Mailpit catcher, not with real email.
 
-## Phase 3: Authorization helper
+## Phase 3: Authorization helper ✅ done 2026-10-20
 
-Replace `getMember` with one helper used by every workspace-scoped route, for example:
+Still on Appwrite. Every workspace-scoped route now goes through one helper in `src/features/members/utils.ts`:
 
 ```ts
-const member = await requireMember(c, workspaceId);           // 401 if not a member
-const admin  = await requireMember(c, workspaceId, 'ADMIN');  // 401 if not admin
+const member = await requireMember(c, workspaceId);                            // 403 if not a member
+await requireMember(c, workspaceId, { role: MemberRole.ADMIN });               // 403 if not an admin
 ```
 
-For routes that receive a task, project or member id rather than a workspace id, load the row and its `workspace_id` in one query, then check membership. Better still, join membership into the same query (`where tasks.id = $1 and members.user_id = $2`) so a non-member simply gets "not found".
+401 means not signed in (session middleware); 403 means signed in but not allowed. Phase 4 changes only the helper's internals. When Phase 4 joins membership into the data query (`where tasks.id = $1 and members.user_id = $2`), a non-member gets "not found" instead.
 
-Done when every route that touches workspace data goes through the helper. List the routes in the PR and check off each one.
+**Security fixes found in the route audit:**
+
+- **Tasks could reference another workspace's project or member.** Create and update now check that `projectId` and `assigneeId` belong to the task's workspace (`requireInWorkspace`). The task list and task detail also look up projects and members only within the workspace. Phase 4's foreign keys don't prevent this on their own: they need the same check, or composite keys on `(workspace_id, id)`.
+- **Bulk update (kanban) checked only the first 25 tasks** (Appwrite's default page size) but updated every id sent. It now requires every id to be found, all in one workspace, before updating any, and returns 400 instead of 200 when they aren't.
+- **`/workspaces/:id/info` showed any workspace's name and image to anyone signed in.** It now requires the invite code (`?inviteCode=`). A wrong code and a missing workspace give the same 404.
+- `Query.contains('$id', …)` is a substring match in Appwrite; the task routes now use exact `Query.equal`. The same pattern in the workspace list is replaced in Phase 4.
+
+**Invite links survive sign-in (bug found while testing; existed since the first commit).** The join page used to send signed-out visitors to plain `/sign-in`, so after signing in they landed on "create a workspace". It now sends them to `/sign-in?callbackUrl=<invite>`, and email/password, Google/GitHub, and sign-up plus email verification all return there. The "Sign Up" / "Login" links in the card and the header button keep the callback. `safeCallbackUrl` (`src/features/auth/utils.ts`) accepts only paths on this site.
+
+**Route checklist.** "Member" means a member of the workspace that owns the resource, never of some other workspace.
+
+| Route | Who can use it |
+| ----- | -------------- |
+| `GET /workspaces` | Signed in; returns only workspaces they're a member of |
+| `POST /workspaces` | Signed in; creator becomes its admin |
+| `GET /workspaces/:id` | Member |
+| `GET /workspaces/:id/info` | Signed in, with the workspace's invite code |
+| `GET /workspaces/:id/analytics` | Member |
+| `PATCH /workspaces/:id` | Admin |
+| `DELETE /workspaces/:id` | Admin |
+| `POST /workspaces/:id/reset-invite-code` | Admin |
+| `POST /workspaces/:id/join` | Signed in, not yet a member, with the invite code |
+| `GET /members?workspaceId=` | Member |
+| `PATCH /members/:id` (role) | Admin |
+| `DELETE /members/:id` | Admin, or the member removing themselves |
+| `GET /projects?workspaceId=` | Member |
+| `POST /projects` | Member |
+| `GET /projects/:id` | Member |
+| `GET /projects/:id/analytics` | Member |
+| `PATCH /projects/:id` | Member |
+| `DELETE /projects/:id` | **Admin** (was any member) |
+| `GET /tasks?workspaceId=` | Member |
+| `POST /tasks` | Member; project and assignee must be in the same workspace |
+| `GET /tasks/:id` | Member |
+| `PATCH /tasks/:id` | Member; project and assignee must be in the same workspace |
+| `DELETE /tasks/:id` | Member |
+| `POST /tasks/bulk-update` | Member; every task must exist and be in that one workspace |
+| `/api/auth/*` | Better Auth |
 
 ## Phase 4: Port the routes
 
@@ -219,7 +256,10 @@ Done when production is live on HTTPS, a restore from last night's backup has be
 
 - ~~Password fields: a show/hide toggle and a "confirm password" field.~~ Done 2026-10-19 with Phase 2: `PasswordInput` on sign-in, sign-up and reset; sign-up and reset also ask for confirmation.
 - ~~Remove `console.log({ user })` from the sign-in page.~~ Done 2026-10-19.
-- Microsoft sign-in (many non-profits use donated Microsoft 365).
-- Postgres row-level security keyed on workspace.
+- **Organizations (tenants), to design before launch.** Today a workspace is effectively the tenant. Add an organization level, one per non-profit, owning one or more workspaces, with its own users and admins (and later billing). Requirement from the user: non-profit A must not be able to learn anything about non-profit B, and vice versa. `requireMember` is where organization scoping goes. Because the data is test data, adding the table is a cheap migration.
+- **Platform admin (the system manager), to design before launch.** One explicit role that can see across all organizations. Its access should be logged, so a non-profit can know when its data was viewed, rather than skipping the normal checks silently.
+- Return to the original page after sign-in for the other signed-in-only pages (task, project, settings, members), using the same `callbackUrl` as the join page.
+- Microsoft sign-in (dropped for now; many non-profits use donated Microsoft 365).
+- Postgres row-level security keyed on workspace (or organization).
 - Billing.
 - A published self-host bundle (the same compose file) for organizations that want to run their own copy.
