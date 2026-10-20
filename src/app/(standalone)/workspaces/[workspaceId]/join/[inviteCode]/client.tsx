@@ -1,6 +1,7 @@
 'use client';
 
 import { useWorkspaceId } from '@/features/workspaces/hooks/use-workspace-id';
+import { useInviteCode } from '@/features/workspaces/hooks/use-invite-code';
 import { useGetWorkspaceInfo } from '@/features/workspaces/api/use-get-workspace-info';
 import { JoinWorkspaceForm } from '@/features/workspaces/components/join-workspace-form';
 
@@ -9,8 +10,10 @@ import { PageLoader } from '@/components/page-loader';
 
 export const WorkspaceIdJoinClient = () => {
   const workspaceId = useWorkspaceId();
+  const inviteCode = useInviteCode();
   const { data: initialValues, isLoading } = useGetWorkspaceInfo({
     workspaceId,
+    inviteCode,
   });
 
   if (isLoading) {
@@ -18,7 +21,7 @@ export const WorkspaceIdJoinClient = () => {
   }
 
   if (!initialValues) {
-    return <PageError message='Project not found' />;
+    return <PageError message='This invite link is invalid or has expired' />;
   }
 
   return (

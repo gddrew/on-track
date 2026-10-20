@@ -9,14 +9,14 @@ import { registerSchema } from '../schema';
 type RequestType = { json: z.infer<typeof registerSchema> };
 
 // The user is signed in once they click the link in the verification email
-export const useRegister = () => {
+export const useRegister = ({ callbackUrl }: { callbackUrl: string }) => {
   const mutation = useMutation<void, Error, RequestType>({
     mutationFn: async ({ json }) => {
       const { error } = await authClient.signUp.email({
         name: json.name,
         email: json.email,
         password: json.password,
-        callbackURL: '/',
+        callbackURL: callbackUrl,
       });
 
       if (error) {

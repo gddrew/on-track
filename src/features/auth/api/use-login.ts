@@ -9,7 +9,7 @@ import { loginSchema } from '../schema';
 
 type RequestType = { json: z.infer<typeof loginSchema> };
 
-export const useLogin = () => {
+export const useLogin = ({ callbackUrl }: { callbackUrl: string }) => {
   const queryClient = useQueryClient();
   const router = useRouter();
 
@@ -18,7 +18,7 @@ export const useLogin = () => {
       // callbackURL is where the verification link lands if the email isn't verified yet
       const { error } = await authClient.signIn.email({
         ...json,
-        callbackURL: '/',
+        callbackURL: callbackUrl,
       });
 
       if (error) {

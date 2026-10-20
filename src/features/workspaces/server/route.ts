@@ -6,7 +6,7 @@ import { endOfMonth, startOfMonth, subMonths } from 'date-fns';
 
 import { MemberRole } from '@/features/members/types';
 import { TaskStatus } from '@/features/tasks/types';
-import { getMember } from '@/features/members/utils';
+import { getMember, requireMember } from '@/features/members/utils';
 
 import { generateInviteCode } from '@/lib/utils';
 import { sessionMiddleware } from '@/lib/session-middleware';
@@ -45,19 +45,10 @@ const app = new Hono()
     return c.json({ data: workspaces });
   })
   .get('/:workspaceId', sessionMiddleware, async (c) => {
-    const user = c.get('user');
     const databases = c.get('databases');
     const { workspaceId } = c.req.param();
 
-    const member = await getMember({
-      databases,
-      workspaceId,
-      userId: user.$id,
-    });
-
-    if (!member) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
+    await requireMember(c, workspaceId);
 
     const workspace = await databases.getDocument<Workspace>(
       DATABASE_ID,
@@ -67,38 +58,39 @@ const app = new Hono()
 
     return c.json({ data: workspace });
   })
-  .get('/:workspaceId/info', sessionMiddleware, async (c) => {
-    const databases = c.get('databases');
-    const { workspaceId } = c.req.param();
+  .get(
+    '/:workspaceId/info',
+    sessionMiddleware,
+    zValidator('query', z.object({ inviteCode: z.string() })),
+    async (c) => {
+      const databases = c.get('databases');
+      const { workspaceId } = c.req.param();
+      const { inviteCode } = c.req.valid('query');
 
-    const workspace = await databases.getDocument<Workspace>(
-      DATABASE_ID,
-      WORKSPACES_ID,
-      workspaceId,
-    );
+      // For the join page, so only with a valid invite link. A wrong code gets the
+      // same answer as a missing workspace, so neither reveals that it exists.
+      const workspace = await databases
+        .getDocument<Workspace>(DATABASE_ID, WORKSPACES_ID, workspaceId)
+        .catch(() => null);
 
-    return c.json({
-      data: {
-        $id: workspace.$id,
-        name: workspace.name,
-        imageUrl: workspace.imageUrl,
-      },
-    });
-  })
+      if (!workspace || workspace.inviteCode !== inviteCode) {
+        return c.json({ error: 'Not found' }, 404);
+      }
+
+      return c.json({
+        data: {
+          $id: workspace.$id,
+          name: workspace.name,
+          imageUrl: workspace.imageUrl,
+        },
+      });
+    },
+  )
   .get('/:workspaceId/analytics', sessionMiddleware, async (c) => {
-    const user = c.get('user');
     const databases = c.get('databases');
     const { workspaceId } = c.req.param();
 
-    const member = await getMember({
-      databases,
-      workspaceId,
-      userId: user.$id,
-    });
-
-    if (!member) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
+    const member = await requireMember(c, workspaceId);
 
     const now = new Date();
     const thisMonthStart = startOfMonth(now);
@@ -310,20 +302,11 @@ const app = new Hono()
     async (c) => {
       const databases = c.get('databases');
       const storage = c.get('storage');
-      const user = c.get('user');
 
       const { workspaceId } = c.req.param();
       const { name, image } = c.req.valid('form');
 
-      const member = await getMember({
-        databases,
-        workspaceId,
-        userId: user.$id,
-      });
-
-      if (!member || member.role !== MemberRole.ADMIN) {
-        return c.json({ error: 'Unauthorized' }, 401);
-      }
+      await requireMember(c, workspaceId, { role: MemberRole.ADMIN });
 
       let uploadedImageUrl: string | undefined;
       if (image instanceof File) {
@@ -358,19 +341,10 @@ const app = new Hono()
   )
   .delete('/:workspaceId', sessionMiddleware, async (c) => {
     const databases = c.get('databases');
-    const user = c.get('user');
 
     const { workspaceId } = c.req.param();
 
-    const member = await getMember({
-      databases,
-      workspaceId,
-      userId: user.$id,
-    });
-
-    if (!member || member.role !== MemberRole.ADMIN) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
+    await requireMember(c, workspaceId, { role: MemberRole.ADMIN });
 
     // TODO: Delete members, projects and tasks
 
@@ -380,19 +354,10 @@ const app = new Hono()
   })
   .post('/:workspaceId/reset-invite-code', sessionMiddleware, async (c) => {
     const databases = c.get('databases');
-    const user = c.get('user');
 
     const { workspaceId } = c.req.param();
 
-    const member = await getMember({
-      databases,
-      workspaceId,
-      userId: user.$id,
-    });
-
-    if (!member || member.role !== MemberRole.ADMIN) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
+    await requireMember(c, workspaceId, { role: MemberRole.ADMIN });
 
     const workspace = await databases.updateDocument(
       DATABASE_ID,

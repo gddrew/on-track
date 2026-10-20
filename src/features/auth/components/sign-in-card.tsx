@@ -19,10 +19,15 @@ import {
 } from '@/components/ui/form';
 import { loginSchema } from '../schema';
 import { useLogin } from '../api/use-login';
+import { withCallbackUrl } from '../utils';
 import { SocialSignIn } from './social-sign-in';
 
-export const SignInCard = () => {
-  const { mutate, isPending } = useLogin();
+interface SignInCardProps {
+  callbackUrl: string;
+}
+
+export const SignInCard = ({ callbackUrl }: SignInCardProps) => {
+  const { mutate, isPending } = useLogin({ callbackUrl });
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -96,7 +101,7 @@ export const SignInCard = () => {
         <DottedSeparator />
       </div>
       <CardContent className='p-7 flex flex-col gap-y-4'>
-        <SocialSignIn disabled={isPending} />
+        <SocialSignIn callbackUrl={callbackUrl} disabled={isPending} />
       </CardContent>
       <div className='px-7'>
         <DottedSeparator />
@@ -104,7 +109,7 @@ export const SignInCard = () => {
       <CardContent className='p-7 flex items-center justify-center'>
         <p>
           Don&apos;t have an account?
-          <Link href='/sign-up'>
+          <Link href={withCallbackUrl('/sign-up', callbackUrl)}>
             <span className='text-blue-700'>&nbsp;Sign Up</span>
           </Link>
         </p>

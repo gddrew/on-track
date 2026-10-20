@@ -4,17 +4,20 @@ import { client } from '@/lib/rpc';
 
 interface UseGetWorkspaceInfoProps {
   workspaceId: string;
+  inviteCode: string;
 }
 
 export const useGetWorkspaceInfo = ({
   workspaceId,
+  inviteCode,
 }: UseGetWorkspaceInfoProps) => {
   const query = useQuery({
-    queryKey: ['workspace-info', workspaceId],
+    queryKey: ['workspace-info', workspaceId, inviteCode],
     queryFn: async () => {
       const response = await client.api.workspaces[':workspaceId']['info'].$get(
         {
           param: { workspaceId },
+          query: { inviteCode },
         },
       );
 

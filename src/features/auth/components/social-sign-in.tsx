@@ -11,11 +11,12 @@ import { Button } from '@/components/ui/button';
 type Provider = 'google' | 'github';
 
 interface SocialSignInProps {
+  callbackUrl: string;
   disabled?: boolean;
 }
 
 // Works for both sign-in and sign-up: the provider account creates the user on first use
-export const SocialSignIn = ({ disabled }: SocialSignInProps) => {
+export const SocialSignIn = ({ callbackUrl, disabled }: SocialSignInProps) => {
   const [pendingProvider, setPendingProvider] = useState<Provider | null>(
     null,
   );
@@ -26,7 +27,7 @@ export const SocialSignIn = ({ disabled }: SocialSignInProps) => {
     // Redirects the browser to the provider on success
     const { error } = await authClient.signIn.social({
       provider,
-      callbackURL: '/',
+      callbackURL: callbackUrl,
       errorCallbackURL: '/sign-in',
     });
 

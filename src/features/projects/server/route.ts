@@ -4,7 +4,8 @@ import { ID, Query } from 'node-appwrite';
 import { zValidator } from '@hono/zod-validator';
 import { endOfMonth, startOfMonth, subMonths } from 'date-fns';
 
-import { getMember } from '@/features/members/utils';
+import { requireMember } from '@/features/members/utils';
+import { MemberRole } from '@/features/members/types';
 
 import { DATABASE_ID, IMAGES_BUCKET_ID, PROJECTS_ID, TASKS_ID } from '@/config';
 import { sessionMiddleware } from '@/lib/session-middleware';
@@ -20,19 +21,10 @@ const app = new Hono()
     async (c) => {
       const databases = c.get('databases');
       const storage = c.get('storage');
-      const user = c.get('user');
 
       const { name, image, workspaceId } = c.req.valid('form');
 
-      const member = await getMember({
-        databases,
-        workspaceId,
-        userId: user.$id,
-      });
-
-      if (!member) {
-        return c.json({ error: 'Unathorized' }, 401);
-      }
+      await requireMember(c, workspaceId);
 
       let uploadedImageUrl: string | undefined;
 
@@ -70,20 +62,11 @@ const app = new Hono()
     sessionMiddleware,
     zValidator('query', z.object({ workspaceId: z.string() })),
     async (c) => {
-      const user = c.get('user');
       const databases = c.get('databases');
 
       const { workspaceId } = c.req.valid('query');
 
-      const member = await getMember({
-        databases,
-        workspaceId,
-        userId: user.$id,
-      });
-
-      if (!member) {
-        return c.json({ erro: 'Unauthorized' }, 401);
-      }
+      await requireMember(c, workspaceId);
 
       const projects = await databases.listDocuments<Project>(
         DATABASE_ID,
@@ -98,7 +81,6 @@ const app = new Hono()
     },
   )
   .get('/:projectId', sessionMiddleware, async (c) => {
-    const user = c.get('user');
     const databases = c.get('databases');
     const { projectId } = c.req.param();
 
@@ -108,20 +90,11 @@ const app = new Hono()
       projectId,
     );
 
-    const member = await getMember({
-      databases,
-      workspaceId: project.workspaceId,
-      userId: user.$id,
-    });
-
-    if (!member) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
+    await requireMember(c, project.workspaceId);
 
     return c.json({ data: project });
   })
   .get('/:projectId/analytics', sessionMiddleware, async (c) => {
-    const user = c.get('user');
     const databases = c.get('databases');
     const { projectId } = c.req.param();
 
@@ -131,15 +104,7 @@ const app = new Hono()
       projectId,
     );
 
-    const member = await getMember({
-      databases,
-      workspaceId: project.workspaceId,
-      userId: user.$id,
-    });
-
-    if (!member) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
+    const member = await requireMember(c, project.workspaceId);
 
     const now = new Date();
     const thisMonthStart = startOfMonth(now);
@@ -306,7 +271,6 @@ const app = new Hono()
     async (c) => {
       const databases = c.get('databases');
       const storage = c.get('storage');
-      const user = c.get('user');
 
       const { projectId } = c.req.param();
       const { name, image } = c.req.valid('form');
@@ -317,15 +281,7 @@ const app = new Hono()
         projectId,
       );
 
-      const member = await getMember({
-        databases,
-        workspaceId: existingProject.workspaceId,
-        userId: user.$id,
-      });
-
-      if (!member) {
-        return c.json({ error: 'Unauthorized' }, 401);
-      }
+      await requireMember(c, existingProject.workspaceId);
 
       let uploadedImageUrl: string | undefined;
       if (image instanceof File) {
@@ -360,7 +316,6 @@ const app = new Hono()
   )
   .delete('/:projectId', sessionMiddleware, async (c) => {
     const databases = c.get('databases');
-    const user = c.get('user');
 
     const { projectId } = c.req.param();
 
@@ -370,15 +325,10 @@ const app = new Hono()
       projectId,
     );
 
-    const member = await getMember({
-      databases,
-      workspaceId: existingProject.workspaceId,
-      userId: user.$id,
+    // Any member can create and edit projects; only admins can delete them
+    await requireMember(c, existingProject.workspaceId, {
+      role: MemberRole.ADMIN,
     });
-
-    if (!member) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
 
     // TODO: Delete tasks
 
